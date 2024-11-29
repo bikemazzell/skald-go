@@ -1,0 +1,66 @@
+{
+    "version": "0.1",
+    "audio": {
+        "sample_rate": 16000,
+        "channels": 1,
+        "silence_threshold": 0.008,
+        "silence_duration": 2,
+        "chunk_duration": 30,
+        "max_duration": 300,
+        "buffer_size_multiplier": 2,
+        "frame_length": 512,
+        "buffered_frames": 10,
+        "device_index": -1,
+        "start_tone": {
+            "enabled": true,
+            "frequency": 440,
+            "duration": 150,
+            "fade_ms": 5
+        }
+    },
+    "processing": {
+        "shutdown_timeout": 30,
+        "event_wait_timeout": 0.1,
+        "channel_buffer_size": 10,
+        "auto_paste": true
+    },
+    "whisper": {
+        "model": "large-v3-turbo-q8_0",
+        "language": "en",
+        "beam_size": 5,
+        "models": {
+            "tiny.en": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
+                "size": "77.7MB"
+            },
+            "base.en": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
+                "size": "148MB"
+            },
+            "small.en": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
+                "size": "488MB"
+            },
+            "medium.en": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin",
+                "size": "1.53GB"
+            },
+            "large-v3-turbo": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+                "size": "1.62GB"
+            },
+            "large-v3-turbo-q8_0": {
+                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin",
+                "size": "874MB"
+            }
+        }
+    },
+    "server": {
+        "socket_path": "/tmp/skald.sock",
+        "socket_timeout": 5.0
+    },
+    "debug": {
+        "print_status": true,
+        "print_transcriptions": true
+    }
+}
