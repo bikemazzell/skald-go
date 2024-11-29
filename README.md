@@ -37,6 +37,14 @@ Build the project
 ```bash
 make build
 ```
+
+OR
+
+Clean, build dependencies, and build the project
+```bash
+make clean && make deps && make build
+```
+
 Run the server
 ```bash
 ./bin/skald-server
