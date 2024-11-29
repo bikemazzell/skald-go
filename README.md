@@ -1,6 +1,10 @@
+```
+╔═╗╦╔═╔═╗╦  ╔╦╗   ╔═╗╔═╗
+╚═╗╠╩╗╠═╣║   ║║   ║ ╦║ ║
+╚═╝╩ ╩╩ ╩╩═╝═╩╝   ╚═╝╚═╝
+```
 # Skald-Go - Voice to Text Transcriber
-> A Go implementation of Skald using whisper.cpp
-> Created by @shoewind1997
+> Created by [@shoewind1997](https://github.com/bikemazzell)
 
 Skald-Go is a lightweight speech-to-text tool that converts your voice to text in real-time using whisper.cpp. It runs quietly in the background without any graphical interface, automatically copying transcriptions to your clipboard. The application consists of two parts: a background server that handles the transcription, and a client that can be bound to a hotkey for easy start/stop control. Named after the ancient Nordic poets and storytellers known as skalds, this tool makes it effortless to transform your spoken words into written text with a single keystroke.
 
@@ -148,7 +152,6 @@ Recording will automatically stop when:
 - Manual stop command is sent
 
 ## Model Selection
-```
 | Model | Size | Use Case | Speed | Memory Usage |
 |-------|------|----------|-------|--------------|
 | tiny.en | 77.7MB | Quick tests, low resource environments | ⚡⚡⚡⚡⚡ | 🟢 Low |
@@ -156,7 +159,7 @@ Recording will automatically stop when:
 | small | ~500MB | Balanced performance | ⚡⚡⚡ | 🟡 Medium |
 | medium | ~1.5GB | Better accuracy | ⚡⚡ | 🟠 High |
 | large-v3 | ~3GB | Best accuracy | ⚡ | 🔴 Very High |
-```
+
 ## Troubleshooting
 
 ### Common Issues:
