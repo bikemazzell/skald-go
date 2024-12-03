@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"skald/internal/config"
+	"skald/internal/model"
 	"skald/internal/server"
 )
 
@@ -28,11 +29,11 @@ func init() {
 
 func displayBanner() {
 	banner := `
-╔═══════════════════════════════════╗
-║ 👄   Skald (STT Transcriber)   🎙️  ║
-║      Created by @shoewind1997     ║
-║ 👂     Version %-6s          📝 ║
-╚═══════════════════════════════════╝`
+══════════════════════════════════
+👄      Skald-Go Transcriber    🎙️ 
+      Created by @shoewind1997    
+👂     Version %-10.10s       📝 
+══════════════════════════════════`
 	fmt.Printf(banner+"\n", version)
 }
 
@@ -54,8 +55,15 @@ func main() {
 	}
 	logger.Printf("Configuration loaded from: %s", absConfigPath)
 
-	// Create server
-	srv, err := server.New(cfg, logger)
+	// Create model manager and ensure model exists
+	modelMgr := model.New(cfg, logger)
+	if err := modelMgr.Initialize(cfg.Whisper.Model); err != nil {
+		logger.Fatalf("Failed to ensure model exists: %v", err)
+	}
+	logger.Printf("Model initialized successfully")
+
+	// Create and start server with model manager
+	srv, err := server.New(cfg, logger, modelMgr)
 	if err != nil {
 		logger.Fatalf("Failed to create server: %v", err)
 	}

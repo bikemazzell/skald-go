@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -13,6 +15,15 @@ import (
 	"skald/internal/whisper"
 	"skald/pkg/utils"
 )
+
+// Add these constants at the top of the file
+var tokensToFilter = []string{
+	"[BLANK_AUDIO]",
+	"[SILENCE]",
+	"[NOISE]",
+	"[SPEECH]",
+	"[MUSIC]",
+}
 
 // Transcriber handles the audio recording and transcription process
 type Transcriber struct {
@@ -32,15 +43,12 @@ type Transcriber struct {
 }
 
 // New creates a new Transcriber instance
-func New(cfg *config.Config, logger *log.Logger) (*Transcriber, error) {
+func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Transcriber, error) {
 	// Create audio processor
 	processor, err := audio.NewProcessor(cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audio processor: %w", err)
 	}
-
-	// Create model manager
-	modelMgr := model.New(cfg, logger)
 
 	// Create recorder
 	recorder, err := audio.NewRecorder(cfg, logger)
@@ -70,11 +78,6 @@ func (t *Transcriber) Start() error {
 		return fmt.Errorf("transcriber is already running")
 	}
 
-	// Initialize model
-	if err := t.modelMgr.Initialize(t.cfg.Whisper.Model); err != nil {
-		return fmt.Errorf("failed to initialize model: %w", err)
-	}
-
 	// Create new recorder instance
 	var err error
 	t.recorder, err = audio.NewRecorder(t.cfg, t.logger)
@@ -82,8 +85,16 @@ func (t *Transcriber) Start() error {
 		return fmt.Errorf("failed to create recorder: %w", err)
 	}
 
+	// Get model path and verify it exists
+	modelPath := t.modelMgr.GetModelPath()
+	t.logger.Printf("Using model at path: %s", modelPath)
+
+	if _, err := os.Stat(modelPath); err != nil {
+		return fmt.Errorf("model file not accessible: %w", err)
+	}
+
 	// Initialize whisper
-	whisperInstance, err := whisper.New(t.modelMgr.GetModelPath(), whisper.Config{
+	whisperInstance, err := whisper.New(modelPath, whisper.Config{
 		Language: t.cfg.Whisper.Language,
 	})
 	if err != nil {
@@ -154,29 +165,21 @@ func (t *Transcriber) Stop() error {
 
 // processAudio handles the audio processing and transcription
 func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float32, transcriptionChan chan<- string) error {
-	t.logger.Printf("Starting audio processing...")
 	for {
 		select {
 		case <-ctx.Done():
 			t.logger.Printf("Context cancelled, stopping audio processing")
 			return nil
 		case samples := <-audioChan:
-			t.logger.Printf("Received audio samples: %d", len(samples))
 			if err := t.processor.ProcessSamples(samples); err != nil {
 				if err == audio.ErrSilenceDetected {
-					t.logger.Printf("Silence detected, getting buffer for transcription")
 					audioData := t.processor.GetBuffer()
-					t.logger.Printf("Got buffer of size: %d samples", len(audioData))
-
 					if len(audioData) > 0 {
-						t.logger.Printf("Processing buffer for transcription")
 						if err := t.processBuffer(audioData, transcriptionChan); err != nil {
 							t.logger.Printf("Failed to process buffer: %v", err)
 							return fmt.Errorf("failed to process buffer: %w", err)
 						}
 					}
-
-					t.logger.Printf("Clearing buffer and stopping recording")
 					t.processor.ClearBuffer()
 
 					if err := t.Stop(); err != nil {
@@ -184,7 +187,6 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 					}
 					return nil
 				}
-				t.logger.Printf("Processing error: %v", err)
 				return fmt.Errorf("processing error: %w", err)
 			}
 		}
@@ -196,16 +198,25 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 		return nil
 	}
 
-	// Transcribe the audio buffer
 	text, err := t.whisper.Transcribe(buffer)
 	if err != nil {
 		return fmt.Errorf("transcription failed: %w", err)
 	}
 
-	if text != "" {
+	// Filter out special tokens
+	filteredText := text
+	for _, token := range tokensToFilter {
+		filteredText = strings.ReplaceAll(filteredText, token, "")
+	}
+
+	filteredText = strings.TrimSpace(filteredText)
+
+	if filteredText != "" {
 		select {
-		case transcriptionChan <- text:
-			t.logger.Printf("Transcribed: %s", text)
+		case transcriptionChan <- filteredText:
+			if t.cfg.Debug.PrintTranscriptions {
+				t.logger.Printf("Transcribed: %s", filteredText)
+			}
 		default:
 			t.logger.Printf("Warning: transcription channel full, dropping text")
 		}
@@ -248,6 +259,12 @@ func (t *Transcriber) Close() error {
 	defer t.mu.Unlock()
 
 	var errs []error
+
+	// Cancel context if running
+	if t.cancel != nil {
+		t.cancel()
+		t.cancel = nil
+	}
 
 	// Stop if running
 	if t.isRunning {

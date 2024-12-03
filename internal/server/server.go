@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"skald/internal/config"
+	"skald/internal/model"
 	"skald/internal/transcriber"
 )
 
@@ -31,6 +32,7 @@ type Server struct {
 	transcriber *transcriber.Transcriber
 	listener    net.Listener
 	logger      *log.Logger
+	modelMgr    *model.ModelManager
 
 	mu        sync.Mutex
 	isRunning bool
@@ -39,8 +41,8 @@ type Server struct {
 }
 
 // New creates a new Server instance
-func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
-	t, err := transcriber.New(cfg, logger)
+func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Server, error) {
+	t, err := transcriber.New(cfg, logger, modelMgr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transcriber: %w", err)
 	}
@@ -49,6 +51,7 @@ func New(cfg *config.Config, logger *log.Logger) (*Server, error) {
 		cfg:         cfg,
 		transcriber: t,
 		logger:      logger,
+		modelMgr:    modelMgr,
 	}, nil
 }
 

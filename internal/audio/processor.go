@@ -82,19 +82,11 @@ func (p *Processor) isSilent(samples []float32) bool {
 	rms := math.Sqrt(sum / float64(len(samples)))
 	threshold := float64(p.cfg.Audio.SilenceThreshold)
 
-	// Add hysteresis: use a higher threshold to exit silence
-	// and a lower threshold to enter silence
 	var isSilent bool
 	if p.consecutiveSilentSamples > 0 {
-		// We're in silence, need more volume to break it
-		isSilent = rms < (threshold * 2.0) // Need double the threshold to break silence
+		isSilent = rms < (threshold * 2.0)
 	} else {
-		// We're not in silence, use normal threshold to enter it
 		isSilent = rms < threshold
-	}
-
-	if p.cfg.Debug.PrintStatus {
-		p.logger.Printf("RMS: %.6f, Threshold: %.6f, IsSilent: %v", rms, threshold, isSilent)
 	}
 
 	return isSilent
@@ -118,13 +110,7 @@ func (p *Processor) ProcessSamples(samples []float32) error {
 		return nil
 	}
 
-	// Log buffer status
-	p.logger.Printf("Buffer status before write: %d/%d samples used",
-		p.buffer.Available(), p.buffer.size)
-
 	isSilent := p.isSilent(samples)
-	p.logger.Printf("Processing samples: len=%d, isSilent=%v, silenceDuration=%.2f, consecutiveSilent=%d",
-		len(samples), isSilent, p.silenceDuration, p.consecutiveSilentSamples)
 
 	if isSilent {
 		p.consecutiveSilentSamples++
@@ -133,7 +119,6 @@ func (p *Processor) ProcessSamples(samples []float32) error {
 			if p.silenceDuration >= p.cfg.Audio.SilenceDuration {
 				p.logger.Printf("Silence threshold reached: %.2f >= %.2f",
 					p.silenceDuration, p.cfg.Audio.SilenceDuration)
-				// Write the current samples before returning the error
 				_, err := p.buffer.Write(samples)
 				if err != nil {
 					return fmt.Errorf("buffer write error: %w", err)
@@ -146,15 +131,10 @@ func (p *Processor) ProcessSamples(samples []float32) error {
 		p.consecutiveSilentSamples = 0
 	}
 
-	// Write to buffer
 	_, err := p.buffer.Write(samples)
 	if err != nil {
 		return fmt.Errorf("buffer write error: %w", err)
 	}
-
-	// Log buffer status after write
-	p.logger.Printf("Buffer status after write: %d/%d samples used",
-		p.buffer.Available(), p.buffer.size)
 
 	return nil
 }

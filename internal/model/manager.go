@@ -25,69 +25,55 @@ func New(cfg *config.Config, logger *log.Logger) *ModelManager {
 }
 
 func (m *ModelManager) Initialize(modelName string) error {
-	// Get model info
-	modelInfo, ok := m.cfg.Whisper.Models[modelName]
-	if !ok {
-		return fmt.Errorf("unknown model: %s", modelName)
+	if err := m.EnsureModelExists(modelName); err != nil {
+		return err
 	}
-
-	// Create models directory if it doesn't exist
-	modelsDir := "models"
-	if err := os.MkdirAll(modelsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create models directory: %w", err)
-	}
-
-	// Construct model path
-	m.modelPath = filepath.Join(modelsDir, fmt.Sprintf("ggml-%s.bin", modelName))
-
-	// Check if model already exists
-	if _, err := os.Stat(m.modelPath); err == nil {
-		m.logger.Printf("Model already exists at: %s", m.modelPath)
-		return nil
-	}
-
-	// Download model
-	m.logger.Printf("Downloading model %s (%s)...", modelName, modelInfo.Size)
-	if err := m.downloadModel(modelInfo.URL, m.modelPath); err != nil {
-		return fmt.Errorf("failed to download model: %w", err)
-	}
-
-	m.logger.Printf("Model downloaded successfully to: %s", m.modelPath)
+	m.modelPath = filepath.Join("models", fmt.Sprintf("ggml-%s.bin", modelName))
 	return nil
 }
 
 func (m *ModelManager) GetModelPath() string {
-	return m.modelPath
+	if m.modelPath == "" {
+		m.logger.Printf("Warning: modelPath is empty, model may not be initialized")
+		return ""
+	}
+
+	absPath, err := filepath.Abs(m.modelPath)
+	if err != nil {
+		m.logger.Printf("Warning: failed to get absolute path for model: %v", err)
+		return m.modelPath
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		m.logger.Printf("Warning: model file not accessible at %s: %v", absPath, err)
+	}
+
+	return absPath
 }
 
 func (m *ModelManager) downloadModel(url, destPath string) error {
-	// Create the destination file
 	out, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer out.Close()
 
-	// Get the data
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Check server response
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	// Create progress counter
 	counter := &WriteCounter{
 		Total:    resp.ContentLength,
 		progress: new(int),
 		logger:   m.logger,
 	}
 
-	// Copy data with progress updates
 	_, err = io.Copy(out, io.TeeReader(resp.Body, counter))
 	if err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
@@ -96,7 +82,6 @@ func (m *ModelManager) downloadModel(url, destPath string) error {
 	return nil
 }
 
-// WriteCounter counts the number of bytes written to it
 type WriteCounter struct {
 	Total    int64
 	progress *int
@@ -111,4 +96,32 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 		wc.logger.Printf("Downloading... %d%%", current)
 	}
 	return n, nil
+}
+
+func (m *ModelManager) EnsureModelExists(modelName string) error {
+	if modelName == "" {
+		return fmt.Errorf("model name cannot be empty")
+	}
+
+	modelInfo, exists := m.cfg.Whisper.Models[modelName]
+	if !exists {
+		return fmt.Errorf("model %s not found in configuration", modelName)
+	}
+
+	modelsDir := "models"
+	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create models directory: %w", err)
+	}
+
+	modelPath := filepath.Join(modelsDir, fmt.Sprintf("ggml-%s.bin", modelName))
+
+	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
+		m.logger.Printf("Model %s not found locally, downloading from %s...", modelName, modelInfo.URL)
+		if err := m.downloadModel(modelInfo.URL, modelPath); err != nil {
+			return fmt.Errorf("failed to download model: %w", err)
+		}
+		m.logger.Printf("Model %s downloaded successfully", modelName)
+	}
+
+	return nil
 }

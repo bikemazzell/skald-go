@@ -10,7 +10,7 @@ Skald-Go is a lightweight speech-to-text tool that converts your voice to text i
 
 ## Features
 
-- 🎤 Real-time microphone input capture using PvRecorder
+- 🎤 Real-time microphone input capture using miniaudio
 - 🤖 Advanced speech recognition using whisper.cpp
 - 📋 Automatic clipboard copying of transcribed text
 - ⌨️ Auto-paste support (configurable)
@@ -127,7 +127,7 @@ Example configuration:
 "channel_buffer_size": 10
 },
 "whisper": {
-"model": "large-v3-turbo-q8_0",
+"model": "base",
 "language": "en",
 "beam_size": 5
 },
@@ -142,19 +142,16 @@ Example configuration:
 }
 ```
 
-## Usage
+## Audio Configuration
+- silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
+- silence_duration: Seconds of silence before recording stops
+- start_tone: Configurable audio feedback when recording starts
 
-1. Start the server:
-```bash
-./bin/skald-server
-```
-2. Use the client to control recording:
-```bash
-./bin/skald-client start # Begin recording
-./bin/skald-client stop # Stop recording
-./bin/skald-client status # Check status
-```
+## Processing Configuration
+- auto_paste: Automatically paste transcribed text (requires xdotool on Linux)
+- channel_buffer_size: Buffer size for audio processing
 
+## Recording
 Recording will automatically stop when:
 - Silence is detected for `silence_duration` seconds
 - Manual stop command is sent
@@ -174,18 +171,25 @@ Recording will automatically stop when:
 
 1. **No microphone input detected:**
    - Check your microphone settings in your OS
-   - Ensure PvRecorder is properly installed
+   - Ensure miniaudio/malgo dependencies are properly installed
    - Verify microphone permissions
+   - Check device_index in config.json (-1 for default device)
 
 2. **Compilation errors:**
    - Ensure OpenMP is installed
    - Check GCC/Clang installation
    - Verify whisper.cpp submodule is properly initialized
+   - Run `make clean && make deps && make build`
 
 3. **Clipboard issues on Linux:**
    - Verify xclip or xsel is installed
    - Check xdotool installation for auto-paste feature
-   - Verify X11 display is available
+   - Verify X11 display is available (note: Wayland users may need to set `export DISPLAY=:0` in their shell)
+   - Check clipboard permissions
+4. **Audio feedback issues:**
+   - Adjust start_tone settings in config.json
+   - Verify audio output device is working
+   - Check system volume levels
 
 ## Contributing
 
