@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+// Manager defines the interface for clipboard operations
+type Manager interface {
+	Copy(text string) error
+	Paste() error
+}
+
 type linuxManager struct {
 	autoPaste bool
 }

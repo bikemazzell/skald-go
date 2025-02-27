@@ -23,3 +23,9 @@ models/
 
 # External
 external/
+
+# Dependencies
+deps/
+
+# Libraries
+lib/

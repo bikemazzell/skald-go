@@ -1,4 +1,3 @@
-```
 ╔═╗╦╔═╔═╗╦  ╔╦╗   ╔═╗╔═╗
 ╚═╗╠╩╗╠═╣║   ║║   ║ ╦║ ║
 ╚═╝╩ ╩╩ ╩╩═╝═╩╝   ╚═╝╚═╝
@@ -61,7 +60,7 @@ In another terminal, control recording
 - Go 1.23 or higher
 - GCC/Clang compiler
 - OpenMP support
-- whisper.cpp (included as submodule)
+- whisper.cpp (included as dependency)
 
 ### Linux-specific Dependencies
 Clipboard support (Required - install either xclip or xsel)
@@ -82,20 +81,38 @@ sudo apt install xdotool
 
 ### Building from Source
 
-1. Clone the repository with submodules:
+1. Clone the repository:
 ```bash
-git clone --recursive https://github.com/bikemazzell/skald-go.git
+git clone https://github.com/bikemazzell/skald-go.git
 cd skald-go
 ```
 
-2. Build the project:
+2. Update dependencies:
+```bash
+./update_deps.sh
+```
+This script will:
+- Clone or update whisper.cpp to the latest stable version
+- Copy the Go bindings from whisper.cpp
+- Copy necessary header files to the appropriate locations
+- Update Go module dependencies
+- Update the vendor directory
+
+3. Build the project:
 ```bash
 make build
 ```
-This will:
-- Build whisper.cpp library
-- Build Go bindings
-- Compile both server and client binaries
+This will compile both server and client binaries.
+
+## Dependency Management
+
+Skald-Go uses a custom dependency management approach for whisper.cpp:
+
+- Dependencies are stored in the `deps/` directory (excluded from git)
+- `update_deps.sh` script handles downloading and updating dependencies
+- You can specify a specific whisper.cpp version: `./update_deps.sh v1.7.4`
+- The script ensures all necessary header files are properly copied
+- Go modules are configured to use the local dependencies
 
 ## Configuration
 
@@ -178,7 +195,7 @@ Recording will automatically stop when:
 2. **Compilation errors:**
    - Ensure OpenMP is installed
    - Check GCC/Clang installation
-   - Verify whisper.cpp submodule is properly initialized
+   - Run `./update_deps.sh` to ensure whisper.cpp and its headers are properly set up
    - Run `make clean && make deps && make build`
 
 3. **Clipboard issues on Linux:**
