@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"skald/internal/config"
 	"skald/internal/model"
@@ -26,6 +27,14 @@ type Response struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// KeyAction represents a keyboard action
+type KeyAction struct {
+	Key     rune
+	Action  string
+	Desc    string
+	Handler func() error
+}
+
 // Server handles client connections and manages the transcriber
 type Server struct {
 	cfg         *config.Config
@@ -38,6 +47,12 @@ type Server struct {
 	isRunning bool
 	ctx       context.Context
 	cancel    context.CancelFunc
+
+	// Keyboard interaction
+	keyActions     []KeyAction
+	keyboardActive bool
+	keyboardCtx    context.Context
+	keyboardCancel context.CancelFunc
 }
 
 // New creates a new Server instance
@@ -47,12 +62,84 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 		return nil, fmt.Errorf("failed to create transcriber: %w", err)
 	}
 
-	return &Server{
+	s := &Server{
 		cfg:         cfg,
 		transcriber: t,
 		logger:      logger,
 		modelMgr:    modelMgr,
-	}, nil
+	}
+
+	// Setup keyboard actions
+	s.setupKeyActions()
+
+	return s, nil
+}
+
+// setupKeyActions configures the available keyboard actions
+func (s *Server) setupKeyActions() {
+	s.keyActions = []KeyAction{
+		{
+			Key:    'r',
+			Action: "start",
+			Desc:   "Start transcription",
+			Handler: func() error {
+				return s.transcriber.Start()
+			},
+		},
+		{
+			Key:    's',
+			Action: "stop",
+			Desc:   "Stop transcription",
+			Handler: func() error {
+				return s.transcriber.Stop()
+			},
+		},
+		{
+			Key:    'i',
+			Action: "status",
+			Desc:   "Show transcriber status",
+			Handler: func() error {
+				isRunning := s.transcriber.IsRunning()
+				status := "stopped"
+				if isRunning {
+					status = "running"
+				}
+				fmt.Printf("\nTranscriber status: %s\n\n", status)
+				return nil
+			},
+		},
+		{
+			Key:    'q',
+			Action: "quit",
+			Desc:   "Quit the application",
+			Handler: func() error {
+				s.logger.Printf("Quit requested via keyboard")
+				if s.cancel != nil {
+					s.cancel()
+				}
+				return nil
+			},
+		},
+		{
+			Key:    '?',
+			Action: "help",
+			Desc:   "Show available commands",
+			Handler: func() error {
+				s.printKeyboardHelp()
+				return nil
+			},
+		},
+	}
+}
+
+// printKeyboardHelp displays available keyboard commands
+func (s *Server) printKeyboardHelp() {
+	fmt.Println("\nAvailable keyboard commands:")
+	fmt.Println("-----------------------------")
+	for _, action := range s.keyActions {
+		fmt.Printf("%c - %s\n", action.Key, action.Desc)
+	}
+	fmt.Println()
 }
 
 // Start begins listening for connections
@@ -85,6 +172,13 @@ func (s *Server) Start() error {
 
 	s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
 
+	// Start keyboard listener in a separate goroutine if enabled
+	if s.cfg.Server.KeyboardEnabled {
+		s.startKeyboardListener()
+		// Print available keyboard commands
+		s.printKeyboardHelp()
+	}
+
 	// Accept connections
 	for {
 		conn, err := listener.Accept()
@@ -97,6 +191,53 @@ func (s *Server) Start() error {
 			}
 		}
 		go s.handleConnection(conn)
+	}
+}
+
+// startKeyboardListener starts a goroutine to listen for keyboard input
+func (s *Server) startKeyboardListener() {
+	s.keyboardCtx, s.keyboardCancel = context.WithCancel(s.ctx)
+	s.keyboardActive = true
+
+	go func() {
+		defer func() {
+			s.keyboardActive = false
+		}()
+
+		s.logger.Printf("Keyboard listener started. Press '?' for help.")
+
+		// Buffer for reading a single character
+		var b = make([]byte, 1)
+		for {
+			select {
+			case <-s.keyboardCtx.Done():
+				return
+			default:
+				// Non-blocking read from stdin
+				os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				_, err := os.Stdin.Read(b)
+				if err != nil {
+					// Timeout or other error, just continue
+					continue
+				}
+
+				// Process the key
+				s.handleKeyPress(rune(b[0]))
+			}
+		}
+	}()
+}
+
+// handleKeyPress processes keyboard input
+func (s *Server) handleKeyPress(key rune) {
+	for _, action := range s.keyActions {
+		if action.Key == key {
+			s.logger.Printf("Executing keyboard action: %s", action.Desc)
+			if err := action.Handler(); err != nil {
+				s.logger.Printf("Error executing action: %v", err)
+			}
+			return
+		}
 	}
 }
 
@@ -173,6 +314,11 @@ func (s *Server) sendResponse(conn net.Conn, resp Response) {
 // Stop gracefully shuts down the server
 func (s *Server) Stop() error {
 	s.logger.Printf("Stopping server...")
+
+	// Stop keyboard listener
+	if s.keyboardActive && s.keyboardCancel != nil {
+		s.keyboardCancel()
+	}
 
 	if s.transcriber != nil {
 		if err := s.transcriber.Close(); err != nil {

@@ -47,8 +47,9 @@ type Config struct {
 		Models   map[string]WhisperModelInfo `json:"models"`
 	} `json:"whisper"`
 	Server struct {
-		SocketPath    string  `json:"socket_path"`
-		SocketTimeout float32 `json:"socket_timeout"`
+		SocketPath      string  `json:"socket_path"`
+		SocketTimeout   float32 `json:"socket_timeout"`
+		KeyboardEnabled bool    `json:"keyboard_enabled"`
 	} `json:"server"`
 	Debug struct {
 		PrintStatus         bool `json:"print_status"`
@@ -132,11 +133,13 @@ func DefaultConfig() *Config {
 			},
 		},
 		Server: struct {
-			SocketPath    string  `json:"socket_path"`
-			SocketTimeout float32 `json:"socket_timeout"`
+			SocketPath      string  `json:"socket_path"`
+			SocketTimeout   float32 `json:"socket_timeout"`
+			KeyboardEnabled bool    `json:"keyboard_enabled"`
 		}{
-			SocketPath:    "/tmp/skald.sock",
-			SocketTimeout: 5.0,
+			SocketPath:      "/tmp/skald.sock",
+			SocketTimeout:   5.0,
+			KeyboardEnabled: true,
 		},
 		Debug: struct {
 			PrintStatus         bool `json:"print_status"`

@@ -1,0 +1,38 @@
+---
+description: 
+globs: 
+---
+// Go (Basic Setup) .cursorrules
+
+// Go best practices
+
+const htmxGoBestPractices = [
+  "Use encoding/json for JSON responses",
+  "Implement proper error handling and logging",
+  "Utilize context for request cancellation and timeouts",
+];
+
+// Folder structure
+
+const folderStructure = `
+cmd/
+  main.go
+internal/
+  handlers/
+  models/
+  templates/
+static/
+  css/
+  js/
+go.mod
+go.sum
+`;
+
+// Additional instructions
+
+const additionalInstructions = `
+1. Follow Go's idiomatic error handling
+2. Implement graceful shutdown for the server
+3. Use Go modules for dependency management
+4. Keep comments to a minimum unless explaining some odd approach or unclear logic
+`;

@@ -17,7 +17,7 @@ LIBRARY_PATH=${WHISPER_PATH}
 # Library paths
 LIB_PATH=$(shell pwd)/lib
 
-# CGO flags
+# CGO flags for static compilation
 CGO_ENV=C_INCLUDE_PATH=${INCLUDE_PATH} LIBRARY_PATH=${LIBRARY_PATH} LD_LIBRARY_PATH=${LIB_PATH}
 CGO_FLAGS=CGO_ENABLED=1 ${CGO_ENV} CGO_LDFLAGS="-L${LIB_PATH} -lwhisper -lm -lstdc++ -fopenmp"
 
@@ -25,8 +25,21 @@ CGO_FLAGS=CGO_ENABLED=1 ${CGO_ENV} CGO_LDFLAGS="-L${LIB_PATH} -lwhisper -lm -lst
 build:
 	mkdir -p $(BUILD_DIR)
 	# Build our application
-	$(CGO_FLAGS) go build $(GO_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
-	$(CGO_FLAGS) go build $(GO_LDFLAGS) -o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
+	$(CGO_FLAGS) go build -o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
+	$(CGO_FLAGS) go build -o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
+
+# Build with static linking (standalone binary)
+build-static:
+	mkdir -p $(BUILD_DIR)
+	# Build with static linking
+	CGO_ENABLED=1 C_INCLUDE_PATH=${INCLUDE_PATH} go build \
+		-tags netgo \
+		-ldflags '-s -w -extldflags "-static"' \
+		-o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
+	CGO_ENABLED=1 C_INCLUDE_PATH=${INCLUDE_PATH} go build \
+		-tags netgo \
+		-ldflags '-s -w -extldflags "-static"' \
+		-o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
 
 # Clean build artifacts
 clean:
@@ -35,6 +48,10 @@ clean:
 # Run the service
 run: build
 	LD_LIBRARY_PATH=${LIB_PATH} ./$(BUILD_DIR)/$(BINARY_NAME)
+
+# Run with static binary (no LD_LIBRARY_PATH needed)
+run-static: build-static
+	./$(BUILD_DIR)/$(BINARY_NAME)
 
 # Run with specific config
 run-config: build

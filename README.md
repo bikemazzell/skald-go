@@ -46,13 +46,13 @@ make clean && make deps && make build
 
 Run the server
 ```bash
-./bin/skald-server
+./run-server.sh
 ```
 In another terminal, control recording
 ```bash
-./bin/skald-client start # Begin recording
-./bin/skald-client stop # Stop recording
-./bin/skald-client status # Check status
+./run-client.sh start # Begin recording
+./run-client.sh stop # Stop recording
+./run-client.sh status # Check status
 ```
 ## System Requirements
 
@@ -104,6 +104,45 @@ make build
 ```
 This will compile both server and client binaries.
 
+## Creating a Distributable Package
+
+Skald-Go includes a packaging script that creates a self-contained directory with all necessary files for distribution:
+
+```bash
+./package.sh
+```
+
+This script will:
+- Build the application
+- Create a package directory (`skald-package`)
+- Copy binaries, libraries, and configuration files
+- Create wrapper scripts for running the server and client
+- Include a systemd service file for easy installation
+- Generate a README with installation and usage instructions
+
+The resulting package can be distributed to other users or systems without requiring them to build from source. Users can simply run the included wrapper scripts to start using Skald-Go.
+
+To install the packaged application:
+
+1. Copy the package directory to the desired location:
+   ```bash
+   cp -r skald-package ~/skald-go
+   ```
+
+2. Run the server:
+   ```bash
+   cd ~/skald-go
+   ./run-server.sh
+   ```
+
+3. In another terminal, control the transcription:
+   ```bash
+   cd ~/skald-go
+   ./run-client.sh start   # Start transcription
+   ./run-client.sh stop    # Stop transcription
+   ./run-client.sh status  # Check status
+   ```
+
 ## Dependency Management
 
 Skald-Go uses a custom dependency management approach for whisper.cpp:
@@ -150,7 +189,8 @@ Example configuration:
 },
 "server": {
 "socket_path": "/tmp/skald.sock",
-"socket_timeout": 5.0
+"socket_timeout": 5.0,
+"keyboard_enabled": true
 },
 "debug": {
 "print_status": true,
@@ -158,6 +198,18 @@ Example configuration:
 }
 }
 ```
+
+## Keyboard Interactions
+
+When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
+
+- `r` - Start transcription (same as running `skald-client start`)
+- `s` - Stop transcription (same as running `skald-client stop`)
+- `i` - Show transcriber status
+- `q` - Quit the application
+- `?` - Show available commands
+
+This allows you to control the transcription directly from the terminal running the server without needing to use the client.
 
 ## Audio Configuration
 - silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
@@ -208,6 +260,13 @@ Recording will automatically stop when:
    - Verify audio output device is working
    - Check system volume levels
 
+5. **Library not found errors:**
+   - Use the provided wrapper scripts (`run-server.sh` and `run-client.sh`) which set the correct library paths
+   - If running the binaries directly, set the LD_LIBRARY_PATH environment variable:
+     ```bash
+     LD_LIBRARY_PATH=/path/to/skald-go/deps/whisper.cpp/build/src:/path/to/skald-go/lib ./bin/skald-server
+     ```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -219,3 +278,68 @@ If you find this project helpful, please consider giving it a star ⭐️
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Running the Server
+
+There are several ways to run the Skald-Go server:
+
+### Using the wrapper script
+
+The simplest way to run the server is to use the provided wrapper script:
+
+```bash
+./run-server.sh
+```
+
+This script automatically sets the correct `LD_LIBRARY_PATH` environment variable to find the required libraries.
+
+### Using the client
+
+To interact with the server, use the provided client wrapper script:
+
+```bash
+./run-client.sh start   # Start transcription
+./run-client.sh stop    # Stop transcription
+./run-client.sh status  # Check server status
+```
+
+### Using systemd (for Linux users)
+
+For a more permanent solution, you can install the provided systemd service:
+
+1. Copy the service file to your user's systemd directory:
+   ```bash
+   mkdir -p ~/.config/systemd/user/
+   cp skald-server.service ~/.config/systemd/user/
+   ```
+
+2. Reload systemd to recognize the new service:
+   ```bash
+   systemctl --user daemon-reload
+   ```
+
+3. Enable and start the service:
+   ```bash
+   systemctl --user enable skald-server.service
+   systemctl --user start skald-server.service
+   ```
+
+4. Check the status of the service:
+   ```bash
+   systemctl --user status skald-server.service
+   ```
+
+5. View logs:
+   ```bash
+   journalctl --user -u skald-server.service -f
+   ```
+
+## Keyboard Interactions
+
+When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
+
+- `r` - Start transcription (same as running `skald-client start`)
+- `s` - Stop transcription (same as running `skald-client stop`)
+- `i` - Show transcriber status
+- `q` - Quit the application
+- `?` - Show available commands

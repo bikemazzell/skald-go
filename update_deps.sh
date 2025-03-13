@@ -52,18 +52,18 @@ git checkout $WHISPER_TAG
 if command -v cmake &> /dev/null; then
   echo "Building whisper.cpp library..."
   # Try to build the library
-  if ! cmake -B build && cmake --build build --config Release; then
+  if ! cmake -B build -DBUILD_SHARED_LIBS=OFF && cmake --build build --config Release; then
     echo "Warning: Failed to build whisper.cpp library with CMake."
     echo "You may need to build it manually:"
     echo "  cd deps/whisper.cpp"
-    echo "  cmake -B build"
+    echo "  cmake -B build -DBUILD_SHARED_LIBS=OFF"
     echo "  cmake --build build --config Release"
   fi
 else
   echo "Warning: CMake not found. Cannot build whisper.cpp library automatically."
   echo "You need to install CMake and build the library manually:"
   echo "  cd deps/whisper.cpp"
-  echo "  cmake -B build"
+  echo "  cmake -B build -DBUILD_SHARED_LIBS=OFF"
   echo "  cmake --build build --config Release"
 fi
 
@@ -193,10 +193,17 @@ if [ -f "deps/whisper.cpp/build/src/libwhisper.so" ]; then
   echo "  export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$(pwd)/lib"
 elif [ -f "deps/whisper.cpp/build/libwhisper.a" ]; then
   echo "Found static library: deps/whisper.cpp/build/libwhisper.a"
+  
+  # Create lib directory if it doesn't exist
+  mkdir -p lib
+  
+  # Copy the static library to the lib directory
+  echo "Copying libwhisper.a to lib directory..."
+  cp deps/whisper.cpp/build/libwhisper.a lib/
 else
   echo "Warning: whisper library not found. You need to build it manually:"
   echo "  cd deps/whisper.cpp"
-  echo "  cmake -B build"
+  echo "  cmake -B build -DBUILD_SHARED_LIBS=OFF"
   echo "  cmake --build build --config Release"
   echo "This is required for the Go bindings to work properly."
 fi
