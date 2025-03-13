@@ -1,3 +1,4 @@
+```
 ╔═╗╦╔═╔═╗╦  ╔╦╗   ╔═╗╔═╗
 ╚═╗╠╩╗╠═╣║   ║║   ║ ╦║ ║
 ╚═╝╩ ╩╩ ╩╩═╝═╩╝   ╚═╝╚═╝
@@ -35,7 +36,7 @@ cd skald-go
 
 Download a model
 ```bash
-./download-model.sh
+./scripts/download-model.sh
 ```
 
 Build the project
@@ -52,13 +53,13 @@ make clean && make deps && make build
 
 Run the server
 ```bash
-./run-server.sh
+./scripts/run-server.sh
 ```
 In another terminal, control recording
 ```bash
-./run-client.sh start # Begin recording
-./run-client.sh stop # Stop recording
-./run-client.sh status # Check status
+./scripts/run-client.sh start # Begin recording
+./scripts/run-client.sh stop # Stop recording
+./scripts/run-client.sh status # Check status
 ```
 ## System Requirements
 
@@ -95,7 +96,7 @@ cd skald-go
 
 2. Download a model:
 ```bash
-./download-model.sh
+./scripts/download-model.sh
 ```
 This script will:
 - Read available models from your config.json
@@ -163,7 +164,7 @@ To install the packaged application:
 Skald-Go includes a script to easily download and manage whisper models:
 
 ```bash
-./download-model.sh
+./scripts/download-model.sh
 ```
 
 This script will:
@@ -252,9 +253,6 @@ skald-go/
 │   ├── skald-server.service # Systemd service file
 │   └── update_deps.sh    # Update dependencies
 ├── vendor/               # Vendored dependencies
-├── download-model.sh     # Symlink to scripts/download-model.sh
-├── run-client.sh         # Symlink to scripts/run-client.sh
-├── run-server.sh         # Symlink to scripts/run-server.sh
 ├── go.mod                # Go module definition
 ├── go.sum                # Go module checksums
 ├── LICENSE               # License file
@@ -312,8 +310,8 @@ Example configuration:
 
 When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
 
-- `r` - Start transcription (same as running `skald-client start`)
-- `s` - Stop transcription (same as running `skald-client stop`)
+- `r` - Start transcription (same as running `./scripts/run-client.sh start`)
+- `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
 - `i` - Show transcriber status
 - `q` - Quit the application
 - `?` - Show available commands
@@ -370,7 +368,7 @@ Recording will automatically stop when:
    - Check system volume levels
 
 5. **Library not found errors:**
-   - Use the provided wrapper scripts (`run-server.sh` and `run-client.sh`) which set the correct library paths
+   - Use the provided wrapper scripts (`scripts/run-server.sh` and `scripts/run-client.sh`) which set the correct library paths
    - If running the binaries directly, set the LD_LIBRARY_PATH environment variable:
      ```bash
      LD_LIBRARY_PATH=/path/to/skald-go/deps/whisper.cpp/build/src:/path/to/skald-go/lib ./bin/skald-server
@@ -397,7 +395,7 @@ There are several ways to run the Skald-Go server:
 The simplest way to run the server is to use the provided wrapper script:
 
 ```bash
-./run-server.sh
+./scripts/run-server.sh
 ```
 
 This script automatically sets the correct `LD_LIBRARY_PATH` environment variable to find the required libraries.
@@ -407,9 +405,9 @@ This script automatically sets the correct `LD_LIBRARY_PATH` environment variabl
 To interact with the server, use the provided client wrapper script:
 
 ```bash
-./run-client.sh start   # Start transcription
-./run-client.sh stop    # Stop transcription
-./run-client.sh status  # Check server status
+./scripts/run-client.sh start   # Start transcription
+./scripts/run-client.sh stop    # Stop transcription
+./scripts/run-client.sh status  # Check server status
 ```
 
 ### Using systemd (for Linux users)
@@ -447,8 +445,8 @@ For a more permanent solution, you can install the provided systemd service:
 
 When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
 
-- `r` - Start transcription (same as running `skald-client start`)
-- `s` - Stop transcription (same as running `skald-client stop`)
+- `r` - Start transcription (same as running `./scripts/run-client.sh start`)
+- `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
 - `i` - Show transcriber status
 - `q` - Quit the application
 - `?` - Show available commands
