@@ -9,13 +9,15 @@ echo "Packaging skald-server..."
 
 # Get the directory of the script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # Create package directory
-PACKAGE_DIR="$SCRIPT_DIR/skald-package"
+PACKAGE_DIR="$PROJECT_ROOT/skald-package"
 mkdir -p "$PACKAGE_DIR/lib"
 mkdir -p "$PACKAGE_DIR/bin"
 mkdir -p "$PACKAGE_DIR/models"
+mkdir -p "$PACKAGE_DIR/scripts"
 
 # Build the application
 echo "Building application with version information..."
@@ -38,9 +40,9 @@ if [ -d "models" ] && [ "$(ls -A models)" ]; then
 fi
 
 # Copy download-model script
-echo "Copying download-model script..."
-cp download-model.sh "$PACKAGE_DIR/"
-chmod +x "$PACKAGE_DIR/download-model.sh"
+echo "Copying scripts..."
+cp scripts/download-model.sh "$PACKAGE_DIR/scripts/"
+chmod +x "$PACKAGE_DIR/scripts/download-model.sh"
 
 # Create run scripts
 echo "Creating run scripts..."
@@ -58,8 +60,16 @@ export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
 "$SCRIPT_DIR/bin/skald-client" "$@"
 EOF
 
+# Create a symlink to the download-model script in the root directory
+cat > "$PACKAGE_DIR/download-model.sh" << 'EOF'
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$SCRIPT_DIR/scripts/download-model.sh" "$@"
+EOF
+
 chmod +x "$PACKAGE_DIR/run-server.sh"
 chmod +x "$PACKAGE_DIR/run-client.sh"
+chmod +x "$PACKAGE_DIR/download-model.sh"
 
 # Copy config file
 cp config.json "$PACKAGE_DIR/"

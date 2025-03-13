@@ -1,4 +1,3 @@
-```
 ╔═╗╦╔═╔═╗╦  ╔╦╗   ╔═╗╔═╗
 ╚═╗╠╩╗╠═╣║   ║║   ║ ╦║ ║
 ╚═╝╩ ╩╩ ╩╩═╝═╩╝   ╚═╝╚═╝
@@ -105,7 +104,7 @@ This script will:
 
 3. Update dependencies:
 ```bash
-./update_deps.sh
+./scripts/update_deps.sh
 ```
 This script will:
 - Clone or update whisper.cpp to the latest stable version
@@ -125,7 +124,7 @@ This will compile both server and client binaries.
 Skald-Go includes a packaging script that creates a self-contained directory with all necessary files for distribution:
 
 ```bash
-./package.sh
+make package
 ```
 
 This script will:
@@ -216,10 +215,52 @@ To add new models to the available options, edit the `config.json` file and add 
 Skald-Go uses a custom dependency management approach for whisper.cpp:
 
 - Dependencies are stored in the `deps/` directory (excluded from git)
-- `update_deps.sh` script handles downloading and updating dependencies
-- You can specify a specific whisper.cpp version: `./update_deps.sh v1.7.4`
+- `scripts/update_deps.sh` script handles downloading and updating dependencies
+- You can specify a specific whisper.cpp version: `./scripts/update_deps.sh v1.7.4`
 - The script ensures all necessary header files are properly copied
 - Go modules are configured to use the local dependencies
+
+## Project Structure
+
+Skald-Go follows standard Go project layout:
+
+```
+skald-go/
+├── bin/                  # Compiled binaries
+├── cmd/                  # Application entry points
+│   ├── client/           # Client application
+│   └── service/          # Server application
+├── config.json           # Application configuration
+├── deps/                 # External dependencies
+├── internal/             # Private application code
+│   ├── audio/            # Audio processing
+│   ├── config/           # Configuration handling
+│   ├── model/            # Model management
+│   ├── server/           # Server implementation
+│   ├── transcriber/      # Transcription logic
+│   └── whisper/          # Whisper integration
+├── lib/                  # Compiled libraries
+├── models/               # Downloaded whisper models
+├── pkg/                  # Public libraries
+│   └── utils/            # Utility functions
+├── scripts/              # Utility scripts
+│   ├── build-static.sh   # Build static binaries
+│   ├── download-model.sh # Download whisper models
+│   ├── package.sh        # Create distributable package
+│   ├── run-client.sh     # Run client wrapper
+│   ├── run-server.sh     # Run server wrapper
+│   ├── skald-server.service # Systemd service file
+│   └── update_deps.sh    # Update dependencies
+├── vendor/               # Vendored dependencies
+├── download-model.sh     # Symlink to scripts/download-model.sh
+├── run-client.sh         # Symlink to scripts/run-client.sh
+├── run-server.sh         # Symlink to scripts/run-server.sh
+├── go.mod                # Go module definition
+├── go.sum                # Go module checksums
+├── LICENSE               # License file
+├── Makefile              # Build automation
+└── README.md             # This file
+```
 
 ## Configuration
 
@@ -315,7 +356,7 @@ Recording will automatically stop when:
 2. **Compilation errors:**
    - Ensure OpenMP is installed
    - Check GCC/Clang installation
-   - Run `./update_deps.sh` to ensure whisper.cpp and its headers are properly set up
+   - Run `./scripts/update_deps.sh` to ensure whisper.cpp and its headers are properly set up
    - Run `make clean && make deps && make build`
 
 3. **Clipboard issues on Linux:**
@@ -378,7 +419,7 @@ For a more permanent solution, you can install the provided systemd service:
 1. Copy the service file to your user's systemd directory:
    ```bash
    mkdir -p ~/.config/systemd/user/
-   cp skald-server.service ~/.config/systemd/user/
+   cp scripts/skald-server.service ~/.config/systemd/user/
    ```
 
 2. Reload systemd to recognize the new service:

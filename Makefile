@@ -59,8 +59,12 @@ run-config: build
 
 # Install dependencies
 deps:
-	./update_deps.sh
+	./scripts/update_deps.sh
 
 # Run tests
 test:
 	LD_LIBRARY_PATH=${LIB_PATH} go test -v ./...
+
+# Package the application
+package: build
+	./scripts/package.sh
