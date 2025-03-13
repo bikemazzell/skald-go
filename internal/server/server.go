@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -114,9 +115,24 @@ func (s *Server) setupKeyActions() {
 			Desc:   "Quit the application",
 			Handler: func() error {
 				s.logger.Printf("Quit requested via keyboard")
+
+				// Cancel the context to signal shutdown first
 				if s.cancel != nil {
 					s.cancel()
 				}
+
+				// Stop the server
+				if err := s.Stop(); err != nil {
+					s.logger.Printf("Error stopping server: %v", err)
+				}
+
+				// Exit the application
+				s.logger.Printf("Exiting application...")
+				go func() {
+					// Give a short delay to allow logs to be written
+					time.Sleep(100 * time.Millisecond)
+					os.Exit(0)
+				}()
 				return nil
 			},
 		},
@@ -181,12 +197,26 @@ func (s *Server) Start() error {
 
 	// Accept connections
 	for {
+		// Use a deadline to allow for graceful shutdown
+		s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(1 * time.Second))
+
 		conn, err := listener.Accept()
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
-				return nil // Normal shutdown
+				// Normal shutdown, return without error
+				return nil
 			default:
+				// Check if it's a timeout error, which we can ignore
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					// This is just a timeout, continue the loop
+					continue
+				}
+				// If the listener is closed, exit gracefully
+				if strings.Contains(err.Error(), "use of closed network connection") {
+					return nil
+				}
+				// Otherwise, it's an unexpected error
 				return fmt.Errorf("accept error: %w", err)
 			}
 		}

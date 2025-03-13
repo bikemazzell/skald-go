@@ -29,3 +29,6 @@ deps/
 
 # Libraries
 lib/
+
+# Cursor specifics
+.cursor/

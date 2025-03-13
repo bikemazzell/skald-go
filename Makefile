@@ -25,8 +25,8 @@ CGO_FLAGS=CGO_ENABLED=1 ${CGO_ENV} CGO_LDFLAGS="-L${LIB_PATH} -lwhisper -lm -lst
 build:
 	mkdir -p $(BUILD_DIR)
 	# Build our application
-	$(CGO_FLAGS) go build -o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
-	$(CGO_FLAGS) go build -o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
+	$(CGO_FLAGS) go build $(GO_LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
+	$(CGO_FLAGS) go build $(GO_LDFLAGS) -o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
 
 # Build with static linking (standalone binary)
 build-static:
@@ -34,11 +34,11 @@ build-static:
 	# Build with static linking
 	CGO_ENABLED=1 C_INCLUDE_PATH=${INCLUDE_PATH} go build \
 		-tags netgo \
-		-ldflags '-s -w -extldflags "-static"' \
+		$(GO_LDFLAGS) -ldflags '-s -w -extldflags "-static"' \
 		-o $(BUILD_DIR)/$(BINARY_NAME) cmd/service/main.go
 	CGO_ENABLED=1 C_INCLUDE_PATH=${INCLUDE_PATH} go build \
 		-tags netgo \
-		-ldflags '-s -w -extldflags "-static"' \
+		$(GO_LDFLAGS) -ldflags '-s -w -extldflags "-static"' \
 		-o $(BUILD_DIR)/$(CLIENT_NAME) cmd/client/main.go
 
 # Clean build artifacts

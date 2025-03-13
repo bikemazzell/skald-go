@@ -18,7 +18,7 @@ mkdir -p "$PACKAGE_DIR/bin"
 mkdir -p "$PACKAGE_DIR/models"
 
 # Build the application
-echo "Building application..."
+echo "Building application with version information..."
 make build
 
 # Copy binaries and libraries
