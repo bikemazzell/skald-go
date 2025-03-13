@@ -15,6 +15,7 @@ cd "$SCRIPT_DIR"
 PACKAGE_DIR="$SCRIPT_DIR/skald-package"
 mkdir -p "$PACKAGE_DIR/lib"
 mkdir -p "$PACKAGE_DIR/bin"
+mkdir -p "$PACKAGE_DIR/models"
 
 # Build the application
 echo "Building application..."
@@ -29,6 +30,17 @@ cp bin/skald-client "$PACKAGE_DIR/bin/"
 if [ -f "deps/whisper.cpp/build/src/libwhisper.so" ]; then
     cp deps/whisper.cpp/build/src/libwhisper.so* "$PACKAGE_DIR/lib/"
 fi
+
+# Copy models if they exist
+if [ -d "models" ] && [ "$(ls -A models)" ]; then
+    echo "Copying models to package directory..."
+    cp models/* "$PACKAGE_DIR/models/"
+fi
+
+# Copy download-model script
+echo "Copying download-model script..."
+cp download-model.sh "$PACKAGE_DIR/"
+chmod +x "$PACKAGE_DIR/download-model.sh"
 
 # Create run scripts
 echo "Creating run scripts..."
@@ -95,6 +107,16 @@ To run the client, use:
 ./run-client.sh status  # Check server status
 ```
 
+## Downloading Models
+
+If you need to download additional models, use:
+
+```bash
+./download-model.sh
+```
+
+This script will allow you to choose which model to download from the available options in config.json.
+
 ## Keyboard Commands
 
 When the server is running, you can use the following keyboard commands:
@@ -109,34 +131,38 @@ When the server is running, you can use the following keyboard commands:
 
 To install as a systemd service:
 
-1. Copy the files to your home directory:
-   ```bash
-   mkdir -p ~/skald-go
-   cp -r * ~/skald-go/
-   ```
+EOF
 
-2. Copy the service file to your systemd user directory:
+# Add installation instructions to README
+cat >> "$PACKAGE_DIR/README.md" << 'EOF'
+1. Copy the service file to your user's systemd directory:
    ```bash
    mkdir -p ~/.config/systemd/user/
    cp skald-server.service ~/.config/systemd/user/
    ```
 
-3. Reload systemd:
+2. Reload systemd to recognize the new service:
    ```bash
    systemctl --user daemon-reload
    ```
 
-4. Enable and start the service:
+3. Enable and start the service:
    ```bash
    systemctl --user enable skald-server.service
    systemctl --user start skald-server.service
    ```
 
-5. Check the status:
+4. Check the status of the service:
    ```bash
    systemctl --user status skald-server.service
+   ```
+
+5. View logs:
+   ```bash
+   journalctl --user -u skald-server.service -f
    ```
 EOF
 
 echo "Package created at $PACKAGE_DIR"
-echo "To run the server: cd $PACKAGE_DIR && ./run-server.sh" 
+echo "To run the server from the package directory:"
+echo "  cd $PACKAGE_DIR && ./run-server.sh" 

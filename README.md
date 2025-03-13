@@ -32,6 +32,12 @@ Clone the repository
 git clone https://github.com/bikemazzell/skald-go.git
 cd skald-go
 ```
+
+Download a model
+```bash
+./download-model.sh
+```
+
 Build the project
 ```bash
 make build
@@ -87,7 +93,16 @@ git clone https://github.com/bikemazzell/skald-go.git
 cd skald-go
 ```
 
-2. Update dependencies:
+2. Download a model:
+```bash
+./download-model.sh
+```
+This script will:
+- Read available models from your config.json
+- Allow you to choose which model to download
+- Download the selected model(s) to the models directory
+
+3. Update dependencies:
 ```bash
 ./update_deps.sh
 ```
@@ -98,7 +113,7 @@ This script will:
 - Update Go module dependencies
 - Update the vendor directory
 
-3. Build the project:
+4. Build the project:
 ```bash
 make build
 ```
@@ -142,6 +157,58 @@ To install the packaged application:
    ./run-client.sh stop    # Stop transcription
    ./run-client.sh status  # Check status
    ```
+
+## Model Management
+
+Skald-Go includes a script to easily download and manage whisper models:
+
+```bash
+./download-model.sh
+```
+
+This script will:
+- Read available models from your config.json file
+- Display a list of available models with their sizes
+- Allow you to choose which model to download or download all models
+- Check if models already exist and ask before redownloading
+- Show download progress
+- Store models in the `models` directory
+
+The script supports multiple download methods:
+- curl (preferred, with progress bar)
+- wget (with progress display)
+- Python's urllib (as a fallback)
+
+When you run the script, you'll see a list of available models:
+
+```
+Available models:
+----------------
+1) tiny (14.6MB)
+2) base (146MB)
+3) large-v3-turbo-q8_0 (874MB)
+4) tiny.en (77.7MB)
+----------------
+```
+
+You can then enter the number of the model you want to download, or 'a' to download all models.
+
+### Adding New Models
+
+To add new models to the available options, edit the `config.json` file and add entries to the `whisper.models` section:
+
+```json
+"models": {
+    "tiny": {
+        "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+        "size": "14.6MB"
+    },
+    "new-model": {
+        "url": "https://example.com/path/to/model.bin",
+        "size": "100MB"
+    }
+}
+```
 
 ## Dependency Management
 
