@@ -187,8 +187,9 @@ Available models:
 ----------------
 1) tiny (14.6MB)
 2) base (146MB)
-3) large-v3-turbo-q8_0 (874MB)
-4) tiny.en (77.7MB)
+3) small (466MB)
+4) large-v3-turbo-q8_0 (874MB)
+5) tiny.en (77.7MB)
 ----------------
 ```
 

@@ -7,7 +7,8 @@ set -e
 
 # Get the directory of the script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
@@ -171,4 +172,4 @@ fi
 
 echo "Model download(s) completed."
 echo "You can now use the model with Skald-Go."
-echo "Run ./run-server.sh to start the server." 
+echo "Run ./scripts/run-server.sh to start the server."
