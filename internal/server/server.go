@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +169,12 @@ func (s *Server) Start() error {
 
 	// Create context
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+
+	// Check if socket path is safe to use
+	if err := s.ensureSocketPathIsSafe(); err != nil {
+		s.mu.Unlock()
+		return fmt.Errorf("socket path is unsafe: %w", err)
+	}
 
 	// Remove existing socket file if it exists
 	if err := os.Remove(s.cfg.Server.SocketPath); err != nil && !os.IsNotExist(err) {
@@ -391,4 +398,52 @@ func NewServerError(code string, message string, err error) *ServerError {
 		Message: message,
 		Err:     err,
 	}
+}
+
+// ensureSocketPathIsSafe checks if the socket path is safe to use
+func (s *Server) ensureSocketPathIsSafe() error {
+	// Validate socket path
+	if s.cfg.Server.SocketPath == "" {
+		return fmt.Errorf("socket path cannot be empty")
+	}
+
+	// Check if the socket path is absolute
+	if !filepath.IsAbs(s.cfg.Server.SocketPath) {
+		return fmt.Errorf("socket path must be absolute")
+	}
+
+	// Check if the directory exists and is writable
+	dir := filepath.Dir(s.cfg.Server.SocketPath)
+	info, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("socket directory does not exist: %w", err)
+		}
+		return fmt.Errorf("failed to stat socket directory: %w", err)
+	}
+
+	// Check if it's a directory
+	if !info.IsDir() {
+		return fmt.Errorf("socket path parent is not a directory")
+	}
+
+	// Check if the socket file exists and is a socket
+	if info, err := os.Stat(s.cfg.Server.SocketPath); err == nil {
+		// File exists, check if it's a socket
+		if info.Mode()&os.ModeSocket == 0 {
+			// Not a socket, could be a regular file or something else
+			return fmt.Errorf("path exists but is not a socket")
+		}
+
+		// It's a socket, check if it's stale
+		conn, err := net.Dial("unix", s.cfg.Server.SocketPath)
+		if err == nil {
+			// Socket is active
+			conn.Close()
+			return fmt.Errorf("socket is already in use by another process")
+		}
+		// Socket is stale, we can remove it
+	}
+
+	return nil
 }

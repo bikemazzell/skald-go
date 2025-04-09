@@ -1,6 +1,7 @@
 package whisper
 
 import (
+	"os"
 	"testing"
 )
 
@@ -25,6 +26,13 @@ func TestTranscribe(t *testing.T) {
 	}
 
 	modelPath := "../../models/ggml-base.bin"
+
+	// Check if model file exists, skip test if not available
+	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
+		t.Skip("Skipping test as model file is not available")
+		return
+	}
+
 	w, err := New(modelPath, Config{})
 	if err != nil {
 		t.Fatalf("failed to create whisper instance: %v", err)

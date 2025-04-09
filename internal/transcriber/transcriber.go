@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"skald/internal/audio"
 	"skald/internal/config"
@@ -165,6 +166,14 @@ func (t *Transcriber) Stop() error {
 
 // processAudio handles the audio processing and transcription
 func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float32, transcriptionChan chan<- string) error {
+	// Set processing flag to true to prevent concurrent processing
+	if !t.processing.CompareAndSwap(false, true) {
+		return fmt.Errorf("audio processing already in progress")
+	}
+
+	// Ensure processing flag is reset when done
+	defer t.processing.Store(false)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -173,15 +182,20 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 		case samples := <-audioChan:
 			if err := t.processor.ProcessSamples(samples); err != nil {
 				if err == audio.ErrSilenceDetected {
+					// Use a mutex to safely access the processor
+					t.mu.Lock()
 					audioData := t.processor.GetBuffer()
 					if len(audioData) > 0 {
 						if err := t.processBuffer(audioData, transcriptionChan); err != nil {
+							t.mu.Unlock()
 							t.logger.Printf("Failed to process buffer: %v", err)
 							return fmt.Errorf("failed to process buffer: %w", err)
 						}
 					}
 					t.processor.ClearBuffer()
+					t.mu.Unlock()
 
+					// Call Stop() outside the lock to avoid deadlock
 					if err := t.Stop(); err != nil {
 						t.logger.Printf("Error stopping transcriber: %v", err)
 					}
@@ -198,7 +212,12 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 		return nil
 	}
 
-	text, err := t.whisper.Transcribe(buffer)
+	// Create a copy of the buffer to avoid race conditions
+	bufferCopy := make([]float32, len(buffer))
+	copy(bufferCopy, buffer)
+
+	// Use whisper to transcribe the audio
+	text, err := t.whisper.Transcribe(bufferCopy)
 	if err != nil {
 		return fmt.Errorf("transcription failed: %w", err)
 	}
@@ -212,12 +231,13 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 	filteredText = strings.TrimSpace(filteredText)
 
 	if filteredText != "" {
+		// Use a timeout to prevent blocking indefinitely
 		select {
 		case transcriptionChan <- filteredText:
 			if t.cfg.Debug.PrintTranscriptions {
 				t.logger.Printf("Transcribed: %s", filteredText)
 			}
-		default:
+		case <-time.After(time.Second * 2): // 2 second timeout
 			t.logger.Printf("Warning: transcription channel full, dropping text")
 		}
 	}
@@ -227,6 +247,10 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 
 // handleTranscriptions manages transcription output and clipboard operations
 func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionChan <-chan string) {
+	// Create a ticker to limit clipboard operations
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -236,14 +260,25 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 				if t.cfg.Debug.PrintTranscriptions {
 					t.logger.Printf("Transcription: %s", text)
 				}
+
+				// Wait for the next tick to avoid overwhelming the clipboard
+				<-ticker.C
+
 				if t.cfg.Processing.AutoPaste {
+					// Validate text before copying to clipboard
+					if !isValidText(text) {
+						t.logger.Printf("Invalid text detected, skipping clipboard operation")
+						continue
+					}
+
 					// First copy to clipboard
 					if err := t.clipboard.Copy(text); err != nil {
 						t.logger.Printf("Failed to copy to clipboard: %v", err)
 						continue
 					}
 
-					// Then simulate paste
+					// Then simulate paste with a small delay to ensure clipboard is ready
+					time.Sleep(50 * time.Millisecond)
 					if err := t.clipboard.Paste(); err != nil {
 						t.logger.Printf("Failed to paste from clipboard: %v", err)
 					}
@@ -251,6 +286,24 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 			}
 		}
 	}
+}
+
+// isValidText checks if the text is safe to copy to clipboard
+func isValidText(text string) bool {
+	// Check if text is empty
+	if text == "" {
+		return false
+	}
+
+	// Check for potentially dangerous characters that could be used for command injection
+	dangerousChars := []string{";", "&", "|"}
+	for _, char := range dangerousChars {
+		if strings.Contains(text, char) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Close cleans up resources

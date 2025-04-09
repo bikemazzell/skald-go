@@ -2,7 +2,7 @@
 #define WHISPER_H
 
 #include "ggml.h"
-#include "ggml-cpu.h"
+// Removed ggml-cpu.h include as it's not needed or included in the proper path
 
 #include <stddef.h>
 #include <stdint.h>

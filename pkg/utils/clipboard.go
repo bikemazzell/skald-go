@@ -4,7 +4,8 @@ import (
     "fmt"
     "os/exec"
     "runtime"
-    
+    "strings"
+
     "github.com/atotto/clipboard"
 )
 
@@ -26,7 +27,30 @@ func (cm *ClipboardManager) Copy(text string) error {
         return nil // Don't copy empty text
     }
 
+    // Validate text before copying to clipboard
+    if !cm.isValidText(text) {
+        return fmt.Errorf("invalid text contains potentially unsafe characters")
+    }
+
     return clipboard.WriteAll(text)
+}
+
+// isValidText checks if the text is safe to copy to clipboard
+func (cm *ClipboardManager) isValidText(text string) bool {
+    // Check if text is empty
+    if text == "" {
+        return false
+    }
+
+    // Check for potentially dangerous characters that could be used for command injection
+    dangerousChars := []string{";", "&", "|"}
+    for _, char := range dangerousChars {
+        if strings.Contains(text, char) {
+            return false
+        }
+    }
+
+    return true
 }
 
 // Paste simulates Ctrl+V/Cmd+V if auto-paste is enabled
