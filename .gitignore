@@ -30,5 +30,6 @@ deps/
 # Libraries
 lib/
 
-# Cursor specifics
-.cursor/
+
+service
+client
