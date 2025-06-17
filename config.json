@@ -26,7 +26,7 @@
     },
     "whisper": {
         "model": "large-v3-turbo-q8_0",
-        "language": "de",
+        "language": "en",
         "beam_size": 5,
         "models": {
             "tiny": {
