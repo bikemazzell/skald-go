@@ -103,7 +103,7 @@ func TestServerError(t *testing.T) {
 	underlyingErr := NewServerError(ErrInvalidCommand, "Invalid command", nil)
 	err = NewServerError(ErrTranscriberFailed, "Transcriber failed", underlyingErr)
 
-	errStr = err.Error()
+	_ = err.Error() // Just verifying it doesn't panic
 	if err.Code != ErrTranscriberFailed {
 		t.Errorf("Expected error code %s, got %s", ErrTranscriberFailed, err.Code)
 	}

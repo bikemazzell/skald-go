@@ -23,8 +23,10 @@ func NewProcessor(cfg *config.Config, logger *log.Logger) (*Processor, error) {
 	// Calculate buffer size using frame settings from config
 	bufferSize := cfg.Audio.SampleRate * cfg.Audio.FrameLength * cfg.Audio.BufferedFrames
 
-	logger.Printf("Initializing audio processor with buffer size: %d samples (%.2f seconds)",
-		bufferSize, float64(bufferSize)/float64(cfg.Audio.SampleRate))
+	if cfg.Verbose {
+		logger.Printf("Initializing audio processor with buffer size: %d samples (%.2f seconds)",
+			bufferSize, float64(bufferSize)/float64(cfg.Audio.SampleRate))
+	}
 
 	return &Processor{
 		cfg:                      cfg,
@@ -117,8 +119,10 @@ func (p *Processor) ProcessSamples(samples []float32) error {
 		if p.consecutiveSilentSamples > 5 {
 			p.silenceDuration += float32(len(samples)) / float32(p.cfg.Audio.SampleRate)
 			if p.silenceDuration >= p.cfg.Audio.SilenceDuration {
-				p.logger.Printf("Silence threshold reached: %.2f >= %.2f",
-					p.silenceDuration, p.cfg.Audio.SilenceDuration)
+				if p.cfg.Verbose {
+					p.logger.Printf("Silence threshold reached: %.2f >= %.2f",
+						p.silenceDuration, p.cfg.Audio.SilenceDuration)
+				}
 				_, err := p.buffer.Write(samples)
 				if err != nil {
 					return fmt.Errorf("buffer write error: %w", err)

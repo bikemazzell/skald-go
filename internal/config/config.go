@@ -16,6 +16,7 @@ type WhisperModelInfo struct {
 // Config represents the application configuration
 type Config struct {
 	Version string `json:"version"`
+	Verbose bool   `json:"-"` // Not from JSON, set via command line
 	Audio   struct {
 		SampleRate           int     `json:"sample_rate"`
 		Channels             int     `json:"channels"`

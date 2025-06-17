@@ -84,7 +84,9 @@ func TestCircularBuffer(t *testing.T) {
 	}
 	
 	// Test clear
-	buffer.Write(samples)
+	if _, err := buffer.Write(samples); err != nil {
+		t.Fatalf("Failed to write samples: %v", err)
+	}
 	buffer.Clear()
 	if buffer.Available() != 0 {
 		t.Errorf("Expected buffer to be empty after clear, got %d elements", buffer.Available())
@@ -98,7 +100,9 @@ func TestCircularBufferWraparound(t *testing.T) {
 	
 	// Fill buffer
 	samples1 := []float32{1.0, 2.0, 3.0}
-	buffer.Write(samples1)
+	if _, err := buffer.Write(samples1); err != nil {
+		t.Fatalf("Failed to write samples1: %v", err)
+	}
 	
 	// Read some data
 	buffer.Read(2)

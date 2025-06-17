@@ -103,7 +103,9 @@ func (r *Recorder) playStartTone() error {
 
 	<-doneChan
 
-	r.playback.Stop()
+	if err := r.playback.Stop(); err != nil {
+		return fmt.Errorf("failed to stop playback: %w", err)
+	}
 	r.playback.Uninit()
 	r.playback = nil
 
@@ -171,7 +173,7 @@ func (r *Recorder) Close() error {
 	}
 
 	if r.context != nil {
-		r.context.Uninit()
+		_ = r.context.Uninit() 
 		r.context = nil
 	}
 

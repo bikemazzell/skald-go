@@ -142,7 +142,12 @@ func (s *Server) setupKeyActions() {
 			Action: "help",
 			Desc:   "Show available commands",
 			Handler: func() error {
-				s.printKeyboardHelp()
+				fmt.Println("\nAvailable commands:")
+				fmt.Println("  r - Start transcription")
+				fmt.Println("  s - Stop transcription")
+				fmt.Println("  i - Show transcriber status")
+				fmt.Println("  q - Quit the application")
+				fmt.Println("  ? - Show this help\n")
 				return nil
 			},
 		},
@@ -151,12 +156,7 @@ func (s *Server) setupKeyActions() {
 
 // printKeyboardHelp displays available keyboard commands
 func (s *Server) printKeyboardHelp() {
-	fmt.Println("\nAvailable keyboard commands:")
-	fmt.Println("-----------------------------")
-	for _, action := range s.keyActions {
-		fmt.Printf("%c - %s\n", action.Key, action.Desc)
-	}
-	fmt.Println()
+	fmt.Println("\nCommands: r=record, s=stop, i=status, q=quit, ?=help")
 }
 
 // Start begins listening for connections
@@ -193,7 +193,9 @@ func (s *Server) Start() error {
 	s.isRunning = true
 	s.mu.Unlock()
 
-	s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
+	if s.cfg.Verbose {
+		s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
+	}
 
 	// Start keyboard listener in a separate goroutine if enabled
 	if s.cfg.Server.KeyboardEnabled {
@@ -205,7 +207,9 @@ func (s *Server) Start() error {
 	// Accept connections
 	for {
 		// Use a deadline to allow for graceful shutdown
-		s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(1 * time.Second))
+		if err := s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(1 * time.Second)); err != nil {
+			s.logger.Printf("Failed to set deadline: %v", err)
+		}
 
 		conn, err := listener.Accept()
 		if err != nil {
@@ -241,7 +245,9 @@ func (s *Server) startKeyboardListener() {
 			s.keyboardActive = false
 		}()
 
-		s.logger.Printf("Keyboard listener started. Press '?' for help.")
+		if s.cfg.Verbose {
+			s.logger.Printf("Keyboard listener started. Press '?' for help.")
+		}
 
 		// Buffer for reading a single character
 		var b = make([]byte, 1)
@@ -251,7 +257,7 @@ func (s *Server) startKeyboardListener() {
 				return
 			default:
 				// Non-blocking read from stdin
-				os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+				_ = os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 				_, err := os.Stdin.Read(b)
 				if err != nil {
 					// Timeout or other error, just continue
@@ -269,7 +275,9 @@ func (s *Server) startKeyboardListener() {
 func (s *Server) handleKeyPress(key rune) {
 	for _, action := range s.keyActions {
 		if action.Key == key {
-			s.logger.Printf("Executing keyboard action: %s", action.Desc)
+			if s.cfg.Verbose {
+				s.logger.Printf("Executing keyboard action: %s", action.Desc)
+			}
 			if err := action.Handler(); err != nil {
 				s.logger.Printf("Error executing action: %v", err)
 			}
@@ -341,12 +349,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	s.logger.Printf("Response sent")
 }
 
-func (s *Server) sendResponse(conn net.Conn, resp Response) {
-	s.logger.Printf("Attempting to send response: %+v", resp)
-	if err := json.NewEncoder(conn).Encode(resp); err != nil {
-		s.logger.Printf("Failed to send response: %v", err)
-	}
-}
 
 // Stop gracefully shuts down the server
 func (s *Server) Stop() error {

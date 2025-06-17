@@ -18,12 +18,14 @@ import (
 
 var (
 	configPath string
+	verbose    bool
 	version    string // Will be set by linker during build
 )
 
 func init() {
 	// Parse command line flags
 	flag.StringVar(&configPath, "config", "config.json", "path to configuration file")
+	flag.BoolVar(&verbose, "verbose", false, "enable verbose logging")
 	flag.Parse()
 }
 
@@ -31,7 +33,6 @@ func displayBanner() {
 	banner := `
 ══════════════════════════════════
 👄      Skald-Go Transcriber    🎙️ 
-      Created by @shoewind1997    
 👂     Version %-10.10s       📝 
 ══════════════════════════════════`
 	fmt.Printf(banner+"\n", version)
@@ -42,6 +43,11 @@ func main() {
 
 	// Create logger
 	logger := log.New(os.Stdout, "", log.LstdFlags)
+	
+	// Set environment variable for whisper verbosity
+	if !verbose {
+		os.Setenv("WHISPER_SILENT", "1")
+	}
 
 	// Load configuration
 	absConfigPath, err := filepath.Abs(configPath)
@@ -53,14 +59,19 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
-	logger.Printf("Configuration loaded from: %s", absConfigPath)
+	cfg.Verbose = verbose // Set verbose flag from command line
+	if verbose {
+		logger.Printf("Configuration loaded from: %s", absConfigPath)
+	}
 
 	// Create model manager and ensure model exists
 	modelMgr := model.New(cfg, logger)
 	if err := modelMgr.Initialize(cfg.Whisper.Model); err != nil {
 		logger.Fatalf("Failed to ensure model exists: %v", err)
 	}
-	logger.Printf("Model initialized successfully")
+	if verbose {
+		logger.Printf("Model initialized successfully")
+	}
 
 	// Create and start server with model manager
 	srv, err := server.New(cfg, logger, modelMgr)
@@ -116,8 +127,3 @@ func main() {
 	os.Exit(0)
 }
 
-// ensureDirectory ensures the directory for the socket file exists
-func ensureDirectory(path string) error {
-	dir := filepath.Dir(path)
-	return os.MkdirAll(dir, 0755)
-}

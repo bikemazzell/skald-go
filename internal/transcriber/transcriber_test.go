@@ -43,7 +43,6 @@ func TestFilterTokens(t *testing.T) {
 					t.Logf("Replaced '%s' in '%s' -> '%s'", token, before, filtered)
 				}
 			}
-			filtered = strings.TrimSpace(filtered)
 
 			t.Errorf("Expected '%s' but got '%s' for input '%s'", tc.expected, actual, tc.input)
 		}

@@ -88,7 +88,9 @@ func (t *Transcriber) Start() error {
 
 	// Get model path and verify it exists
 	modelPath := t.modelMgr.GetModelPath()
-	t.logger.Printf("Using model at path: %s", modelPath)
+	if t.cfg.Verbose {
+		t.logger.Printf("Using model at path: %s", modelPath)
+	}
 
 	if _, err := os.Stat(modelPath); err != nil {
 		return fmt.Errorf("model file not accessible: %w", err)
@@ -96,11 +98,11 @@ func (t *Transcriber) Start() error {
 
 	// Initialize whisper
 	whisperInstance, err := whisper.New(modelPath, whisper.Config{
-		Language: t.cfg.Whisper.Language,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to initialize whisper: %w", err)
-	}
+			Language: t.cfg.Whisper.Language,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to initialize whisper: %w", err)
+		}
 	t.whisper = whisperInstance
 
 	t.ctx, t.cancel = context.WithCancel(context.Background())
@@ -237,7 +239,7 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 			if t.cfg.Debug.PrintTranscriptions {
 				t.logger.Printf("Transcribed: %s", filteredText)
 			}
-		case <-time.After(time.Second * 2): // 2 second timeout
+		case <-time.After(time.Duration(t.cfg.Audio.SilenceDuration) * time.Second):
 			t.logger.Printf("Warning: transcription channel full, dropping text")
 		}
 	}
