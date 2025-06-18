@@ -98,11 +98,12 @@ func (t *Transcriber) Start() error {
 
 	// Initialize whisper
 	whisperInstance, err := whisper.New(modelPath, whisper.Config{
-			Language: t.cfg.Whisper.Language,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to initialize whisper: %w", err)
-		}
+		Language: t.cfg.Whisper.Language,
+		Silent:   t.cfg.Whisper.Silent,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize whisper: %w", err)
+	}
 	t.whisper = whisperInstance
 
 	t.ctx, t.cancel = context.WithCancel(context.Background())
@@ -236,9 +237,6 @@ func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- s
 		// Use a timeout to prevent blocking indefinitely
 		select {
 		case transcriptionChan <- filteredText:
-			if t.cfg.Debug.PrintTranscriptions {
-				t.logger.Printf("Transcribed: %s", filteredText)
-			}
 		case <-time.After(time.Duration(t.cfg.Audio.SilenceDuration) * time.Second):
 			t.logger.Printf("Warning: transcription channel full, dropping text")
 		}

@@ -45,6 +45,7 @@ type Config struct {
 		Model    string                      `json:"model"`
 		Language string                      `json:"language"`
 		BeamSize int                         `json:"beam_size"`
+		Silent   bool                        `json:"silent"`
 		Models   map[string]WhisperModelInfo `json:"models"`
 	} `json:"whisper"`
 	Server struct {
@@ -117,11 +118,13 @@ func DefaultConfig() *Config {
 			Model    string                      `json:"model"`
 			Language string                      `json:"language"`
 			BeamSize int                         `json:"beam_size"`
+			Silent   bool                        `json:"silent"`
 			Models   map[string]WhisperModelInfo `json:"models"`
 		}{
 			Model:    "large-v3-turbo-q8_0",
 			Language: "en",
 			BeamSize: 5,
+			Silent:   false,
 			Models: map[string]WhisperModelInfo{
 				"tiny.en": {
 					URL:  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",

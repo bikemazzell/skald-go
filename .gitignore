@@ -30,6 +30,10 @@ deps/
 # Libraries
 lib/
 
+# Scaffolding
+.claude
 
-service
-client
+
+# Binaries
+#service
+#client

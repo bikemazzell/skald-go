@@ -2,30 +2,53 @@ package whisper
 
 import (
 	"fmt"
+	"os"
 
 	whisper "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
 type Config struct {
 	Language string
+	Silent   bool
 }
 
 type Whisper struct {
-	model whisper.Model
-	ctx   whisper.Context
-	cfg   Config
+	model     whisper.Model
+	ctx       whisper.Context
+	cfg       Config
+	firstCall bool
 }
 
 func New(modelPath string, cfg Config) (*Whisper, error) {
-	model, err := whisper.New(modelPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load model: %w", err)
+	var model whisper.Model
+	var ctx whisper.Context
+	var err error
+
+	if cfg.Silent {
+		// Set environment variable to suppress GGML/Whisper logging
+		// This is a common approach used by whisper.cpp applications
+		oldLogLevel := os.Getenv("GGML_LOG_LEVEL")
+		os.Setenv("GGML_LOG_LEVEL", "ERROR")
+		defer func() {
+			if oldLogLevel == "" {
+				os.Unsetenv("GGML_LOG_LEVEL")
+			} else {
+				os.Setenv("GGML_LOG_LEVEL", oldLogLevel)
+			}
+		}()
 	}
 
-	ctx, err := model.NewContext()
+	// Perform all potentially verbose initialization
+	model, err = whisper.New(modelPath)
+	if err == nil {
+		ctx, err = model.NewContext()
+		if err != nil {
+			model.Close()
+		}
+	}
+
 	if err != nil {
-		model.Close()
-		return nil, fmt.Errorf("failed to create context: %w", err)
+		return nil, fmt.Errorf("failed to load model: %w", err)
 	}
 
 	// Set the language if specified
@@ -40,9 +63,10 @@ func New(modelPath string, cfg Config) (*Whisper, error) {
 	ctx.SetTranslate(false)
 
 	return &Whisper{
-		model: model,
-		ctx:   ctx,
-		cfg:   cfg,
+		model:     model,
+		ctx:       ctx,
+		cfg:       cfg,
+		firstCall: true,
 	}, nil
 }
 

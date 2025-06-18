@@ -28,6 +28,7 @@
         "model": "large-v3-turbo-q8_0",
         "language": "en",
         "beam_size": 5,
+        "silent": true,
         "models": {
             "tiny": {
                 "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
