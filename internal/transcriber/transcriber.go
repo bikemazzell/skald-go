@@ -106,7 +106,16 @@ func (t *Transcriber) Start() error {
 	}
 	t.whisper = whisperInstance
 
-	t.ctx, t.cancel = context.WithCancel(context.Background())
+	// Create context with timeout if continuous mode has max session duration
+	if t.cfg.Processing.ContinuousMode.Enabled && t.cfg.Processing.ContinuousMode.MaxSessionDuration > 0 {
+		timeout := time.Duration(t.cfg.Processing.ContinuousMode.MaxSessionDuration) * time.Second
+		t.ctx, t.cancel = context.WithTimeout(context.Background(), timeout)
+		if t.cfg.Verbose {
+			t.logger.Printf("Continuous mode enabled with %d second session limit", t.cfg.Processing.ContinuousMode.MaxSessionDuration)
+		}
+	} else {
+		t.ctx, t.cancel = context.WithCancel(context.Background())
+	}
 	t.isRunning = true
 
 	// Create channels for audio data
@@ -198,11 +207,20 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 					t.processor.ClearBuffer()
 					t.mu.Unlock()
 
-					// Call Stop() outside the lock to avoid deadlock
-					if err := t.Stop(); err != nil {
-						t.logger.Printf("Error stopping transcriber: %v", err)
+					// Check if continuous mode is enabled
+					if t.cfg.Processing.ContinuousMode.Enabled {
+						// In continuous mode, continue recording after silence
+						if t.cfg.Verbose {
+							t.logger.Printf("Silence detected, continuing in continuous mode")
+						}
+						continue
+					} else {
+						// Call Stop() outside the lock to avoid deadlock
+						if err := t.Stop(); err != nil {
+							t.logger.Printf("Error stopping transcriber: %v", err)
+						}
+						return nil
 					}
-					return nil
 				}
 				return fmt.Errorf("processing error: %w", err)
 			}
@@ -266,7 +284,7 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 
 				if t.cfg.Processing.AutoPaste {
 					// Validate text before copying to clipboard
-					if !isValidText(text) {
+					if !t.isValidText(text) {
 						t.logger.Printf("Invalid text detected, skipping clipboard operation")
 						continue
 					}
@@ -281,6 +299,11 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 					time.Sleep(50 * time.Millisecond)
 					if err := t.clipboard.Paste(); err != nil {
 						t.logger.Printf("Failed to paste from clipboard: %v", err)
+					} else {
+						// Play completion tone after successful clipboard operation
+						if err := t.recorder.PlayCompletionTone(); err != nil {
+							t.logger.Printf("Warning: failed to play completion tone: %v", err)
+						}
 					}
 				}
 			}
@@ -288,11 +311,16 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 	}
 }
 
-// isValidText checks if the text is safe to copy to clipboard
-func isValidText(text string) bool {
-	// Use the clipboard manager's validation logic
+// isValidText checks if the text is safe to copy to clipboard using config settings
+func (t *Transcriber) isValidText(text string) bool {
+	// Use configuration-aware validation
 	cm := utils.NewClipboardManager(false)
-	return cm.IsValidText(text)
+	return cm.IsValidTextWithMode(
+		text, 
+		t.cfg.Processing.TextValidation.Mode,
+		t.cfg.Processing.TextValidation.AllowPunctuation,
+		t.cfg.Processing.TextValidation.CustomBlocklist,
+	)
 }
 
 // Close cleans up resources

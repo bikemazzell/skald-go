@@ -55,6 +55,11 @@ func (cm *ClipboardManager) Copy(text string) error {
 
 // IsValidText checks if the text is safe to copy to clipboard
 func (cm *ClipboardManager) IsValidText(text string) bool {
+    return cm.IsValidTextWithMode(text, "security_focused", true, []string{})
+}
+
+// IsValidTextWithMode checks text validity with configurable validation mode
+func (cm *ClipboardManager) IsValidTextWithMode(text, mode string, allowPunctuation bool, customBlocklist []string) bool {
     // Check if text is empty
     if text == "" {
         return false
@@ -66,7 +71,78 @@ func (cm *ClipboardManager) IsValidText(text string) bool {
         return false
     }
 
-    // Check for potentially dangerous characters and patterns
+    // Apply mode-specific validation
+    switch mode {
+    case "security_focused":
+        return cm.validateSecurityFocused(text, allowPunctuation, customBlocklist)
+    case "strict":
+        return cm.validateStrict(text)
+    default:
+        return cm.validateSecurityFocused(text, allowPunctuation, customBlocklist)
+    }
+}
+
+// validateSecurityFocused only blocks actual security threats, allows normal punctuation
+func (cm *ClipboardManager) validateSecurityFocused(text string, allowPunctuation bool, customBlocklist []string) bool {
+    // Check for actual command injection patterns (not simple punctuation)
+    dangerousPatterns := []string{
+        "$(", "${",     // Command substitution
+        "&&", "||",     // Command chaining
+        ">>", "<<",     // Redirection/heredoc
+        "`",            // Backtick command substitution
+    }
+    
+    // If punctuation is not allowed, add basic dangerous chars
+    if !allowPunctuation {
+        dangerousPatterns = append(dangerousPatterns, 
+            ";", "&", "|", "<", ">", "\\", "'", "\"", "!", "(", ")", "{", "}", "[", "]", "$")
+    }
+    
+    for _, pattern := range dangerousPatterns {
+        if strings.Contains(text, pattern) {
+            return false
+        }
+    }
+
+    // Check custom blocklist
+    lowerText := strings.ToLower(text)
+    for _, blocked := range customBlocklist {
+        if strings.Contains(lowerText, strings.ToLower(blocked)) {
+            return false
+        }
+    }
+
+    // Check for dangerous shell commands at word boundaries
+    dangerousCommands := []string{
+        "rm -rf", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
+        "curl -", "wget -", "bash -", "sh -", "eval ", "exec ",
+    }
+    
+    for _, cmd := range dangerousCommands {
+        if strings.Contains(lowerText, cmd) {
+            return false
+        }
+    }
+
+    // Check for control characters (but allow common whitespace)
+    for _, r := range text {
+        if r < 32 && r != 9 && r != 10 && r != 13 { // Allow tab, newline, carriage return
+            return false
+        }
+        // Block private use and undefined Unicode ranges
+        if (r >= 0xE000 && r <= 0xF8FF) || // Private use area
+           (r >= 0xF0000 && r <= 0xFFFFF) || // Supplementary private use area A
+           (r >= 0x100000 && r <= 0x10FFFF) { // Supplementary private use area B
+            return false
+        }
+    }
+
+    return true
+}
+
+// validateStrict uses the original strict validation
+func (cm *ClipboardManager) validateStrict(text string) bool {
+    // Original strict validation for backward compatibility
     dangerousPatterns := []string{
         ";", "&", "|", "`", "$", "(", ")", "{", "}", "[", "]", 
         "\n", "\r", "\x00", // Control characters

@@ -32,8 +32,46 @@ func NewRecorder(cfg *config.Config, logger *log.Logger) (*Recorder, error) {
 	}, nil
 }
 
+// ToneConfig represents configuration for playing audio tones
+type ToneConfig struct {
+	Enabled   bool
+	Frequency int
+	Duration  int
+	FadeMs    int
+}
+
 func (r *Recorder) playStartTone() error {
-	if !r.cfg.Audio.StartTone.Enabled {
+	toneConfig := ToneConfig{
+		Enabled:   r.cfg.Audio.StartTone.Enabled,
+		Frequency: r.cfg.Audio.StartTone.Frequency,
+		Duration:  r.cfg.Audio.StartTone.Duration,
+		FadeMs:    r.cfg.Audio.StartTone.FadeMs,
+	}
+	return r.playTone(toneConfig)
+}
+
+func (r *Recorder) PlayCompletionTone() error {
+	toneConfig := ToneConfig{
+		Enabled:   r.cfg.Audio.CompletionTone.Enabled,
+		Frequency: r.cfg.Audio.CompletionTone.Frequency,
+		Duration:  r.cfg.Audio.CompletionTone.Duration,
+		FadeMs:    r.cfg.Audio.CompletionTone.FadeMs,
+	}
+	return r.playTone(toneConfig)
+}
+
+func (r *Recorder) PlayErrorTone() error {
+	toneConfig := ToneConfig{
+		Enabled:   r.cfg.Audio.ErrorTone.Enabled,
+		Frequency: r.cfg.Audio.ErrorTone.Frequency,
+		Duration:  r.cfg.Audio.ErrorTone.Duration,
+		FadeMs:    r.cfg.Audio.ErrorTone.FadeMs,
+	}
+	return r.playTone(toneConfig)
+}
+
+func (r *Recorder) playTone(toneConfig ToneConfig) error {
+	if !toneConfig.Enabled {
 		return nil
 	}
 
@@ -44,15 +82,15 @@ func (r *Recorder) playStartTone() error {
 	deviceConfig.Alsa.NoMMap = 1
 
 	// Calculate total samples needed for the duration
-	totalSamples := (r.cfg.Audio.SampleRate * r.cfg.Audio.StartTone.Duration) / 1000
+	totalSamples := (r.cfg.Audio.SampleRate * toneConfig.Duration) / 1000
 
 	doneChan := make(chan struct{})
 	var sampleCount uint32 = 0
 	var err error
 	r.playback, err = malgo.InitDevice(r.context.Context, deviceConfig, malgo.DeviceCallbacks{
 		Data: func(outputSamples, inputSamples []byte, framecount uint32) {
-			freq := float32(r.cfg.Audio.StartTone.Frequency)
-			duration := float32(r.cfg.Audio.StartTone.Duration) / 1000.0
+			freq := float32(toneConfig.Frequency)
+			duration := float32(toneConfig.Duration) / 1000.0
 			samples := make([]float32, framecount)
 
 			for i := range samples {
@@ -68,7 +106,7 @@ func (r *Recorder) playStartTone() error {
 				if t > duration {
 					samples[i] = 0
 				} else {
-					fadeTime := float32(r.cfg.Audio.StartTone.FadeMs) / 1000.0
+					fadeTime := float32(toneConfig.FadeMs) / 1000.0
 					var amp float32 = 1.0
 					if t < fadeTime {
 						amp = t / fadeTime

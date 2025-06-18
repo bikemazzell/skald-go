@@ -35,12 +35,35 @@ type Config struct {
 			Duration  int  `json:"duration"`
 			FadeMs    int  `json:"fade_ms"`
 		} `json:"start_tone"`
+		CompletionTone struct {
+			Enabled   bool `json:"enabled"`
+			Frequency int  `json:"frequency"`
+			Duration  int  `json:"duration"`
+			FadeMs    int  `json:"fade_ms"`
+		} `json:"completion_tone"`
+		ErrorTone struct {
+			Enabled   bool `json:"enabled"`
+			Frequency int  `json:"frequency"`
+			Duration  int  `json:"duration"`
+			FadeMs    int  `json:"fade_ms"`
+		} `json:"error_tone"`
 	} `json:"audio"`
 	Processing struct {
 		ShutdownTimeout   int     `json:"shutdown_timeout"`
 		EventWaitTimeout  float64 `json:"event_wait_timeout"`
 		AutoPaste         bool    `json:"auto_paste"`
 		ChannelBufferSize int     `json:"channel_buffer_size"`
+		ContinuousMode    struct {
+			Enabled              bool `json:"enabled"`
+			MaxSessionDuration   int  `json:"max_session_duration"`
+			InterSpeechTimeout   int  `json:"inter_speech_timeout"`
+			AutoStopOnIdle       bool `json:"auto_stop_on_idle"`
+		} `json:"continuous_mode"`
+		TextValidation struct {
+			Mode               string   `json:"mode"`
+			AllowPunctuation   bool     `json:"allow_punctuation"`
+			CustomBlocklist    []string `json:"custom_blocklist"`
+		} `json:"text_validation"`
 	} `json:"processing"`
 	Whisper struct {
 		Model    string                      `json:"model"`
@@ -81,6 +104,18 @@ func DefaultConfig() *Config {
 				Duration  int  `json:"duration"`
 				FadeMs    int  `json:"fade_ms"`
 			} `json:"start_tone"`
+			CompletionTone struct {
+				Enabled   bool `json:"enabled"`
+				Frequency int  `json:"frequency"`
+				Duration  int  `json:"duration"`
+				FadeMs    int  `json:"fade_ms"`
+			} `json:"completion_tone"`
+			ErrorTone struct {
+				Enabled   bool `json:"enabled"`
+				Frequency int  `json:"frequency"`
+				Duration  int  `json:"duration"`
+				FadeMs    int  `json:"fade_ms"`
+			} `json:"error_tone"`
 		}{
 			SampleRate:           16000,
 			Channels:             1,
@@ -103,17 +138,70 @@ func DefaultConfig() *Config {
 				Duration:  150,
 				FadeMs:    5,
 			},
+			CompletionTone: struct {
+				Enabled   bool `json:"enabled"`
+				Frequency int  `json:"frequency"`
+				Duration  int  `json:"duration"`
+				FadeMs    int  `json:"fade_ms"`
+			}{
+				Enabled:   true,
+				Frequency: 660,
+				Duration:  200,
+				FadeMs:    10,
+			},
+			ErrorTone: struct {
+				Enabled   bool `json:"enabled"`
+				Frequency int  `json:"frequency"`
+				Duration  int  `json:"duration"`
+				FadeMs    int  `json:"fade_ms"`
+			}{
+				Enabled:   true,
+				Frequency: 220,
+				Duration:  300,
+				FadeMs:    15,
+			},
 		},
 		Processing: struct {
 			ShutdownTimeout   int     `json:"shutdown_timeout"`
 			EventWaitTimeout  float64 `json:"event_wait_timeout"`
 			AutoPaste         bool    `json:"auto_paste"`
 			ChannelBufferSize int     `json:"channel_buffer_size"`
+			ContinuousMode    struct {
+				Enabled              bool `json:"enabled"`
+				MaxSessionDuration   int  `json:"max_session_duration"`
+				InterSpeechTimeout   int  `json:"inter_speech_timeout"`
+				AutoStopOnIdle       bool `json:"auto_stop_on_idle"`
+			} `json:"continuous_mode"`
+			TextValidation struct {
+				Mode               string   `json:"mode"`
+				AllowPunctuation   bool     `json:"allow_punctuation"`
+				CustomBlocklist    []string `json:"custom_blocklist"`
+			} `json:"text_validation"`
 		}{
 			ShutdownTimeout:   30,
 			EventWaitTimeout:  0.1,
 			AutoPaste:         true,
 			ChannelBufferSize: 10,
+			ContinuousMode: struct {
+				Enabled              bool `json:"enabled"`
+				MaxSessionDuration   int  `json:"max_session_duration"`
+				InterSpeechTimeout   int  `json:"inter_speech_timeout"`
+				AutoStopOnIdle       bool `json:"auto_stop_on_idle"`
+			}{
+				Enabled:              true,
+				MaxSessionDuration:   300, // 5 minutes
+				InterSpeechTimeout:   10,  // 10 seconds
+				AutoStopOnIdle:       true,
+			},
+			TextValidation: struct {
+				Mode               string   `json:"mode"`
+				AllowPunctuation   bool     `json:"allow_punctuation"`
+				CustomBlocklist    []string `json:"custom_blocklist"`
+			}{
+				Mode:               "security_focused",
+				AllowPunctuation:   true,
+				CustomBlocklist:    []string{},
+			},
 		},
 		Whisper: struct {
 			Model    string                      `json:"model"`

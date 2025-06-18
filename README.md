@@ -14,7 +14,10 @@ Skald-Go is a lightweight speech-to-text tool that converts your voice to text i
 - 🤖 Advanced speech recognition using whisper.cpp
 - 📋 Automatic clipboard copying of transcribed text
 - ⌨️ Auto-paste support (configurable)
+- 🔄 **Continuous recording mode** - Keep recording until manually stopped
+- 🎵 **Audio feedback** - Customizable tones for start, completion, and error states
 - 🛑 Silence detection for automatic stopping
+- 🔒 **Security-focused text validation** - Allows natural punctuation while blocking command injection
 - 💪 Multiple whisper models supported
 - 🎯 OpenMP optimized processing
 
@@ -282,13 +285,36 @@ Example configuration:
 "frequency": 440,
 "duration": 150,
 "fade_ms": 5
+},
+"completion_tone": {
+"enabled": true,
+"frequency": 660,
+"duration": 200,
+"fade_ms": 10
+},
+"error_tone": {
+"enabled": true,
+"frequency": 220,
+"duration": 300,
+"fade_ms": 15
 }
 },
 "processing": {
 "shutdown_timeout": 30,
 "event_wait_timeout": 0.1,
 "auto_paste": true,
-"channel_buffer_size": 10
+"channel_buffer_size": 10,
+"continuous_mode": {
+"enabled": true,
+"max_session_duration": 300,
+"inter_speech_timeout": 10,
+"auto_stop_on_idle": true
+},
+"text_validation": {
+"mode": "security_focused",
+"allow_punctuation": true,
+"custom_blocklist": []
+}
 },
 "whisper": {
 "model": "base",
@@ -322,16 +348,41 @@ This allows you to control the transcription directly from the terminal running 
 ## Audio Configuration
 - silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
 - silence_duration: Seconds of silence before recording stops
-- start_tone: Configurable audio feedback when recording starts
+- start_tone: Audio feedback when recording starts
+- completion_tone: Audio feedback when transcription completes successfully
+- error_tone: Audio feedback when an error occurs
 
 ## Processing Configuration
 - auto_paste: Automatically paste transcribed text (requires xdotool on Linux)
 - channel_buffer_size: Buffer size for audio processing
+- continuous_mode: Settings for continuous recording mode
+  - enabled: Enable/disable continuous recording
+  - max_session_duration: Maximum recording session time in seconds
+  - inter_speech_timeout: Silence timeout between speech segments
+  - auto_stop_on_idle: Automatically stop after extended idle time
+- text_validation: Security settings for transcribed text
+  - mode: Validation mode ("security_focused" or "strict")
+  - allow_punctuation: Allow natural punctuation in transcriptions
+  - custom_blocklist: Additional words/phrases to block
 
 ## Recording
+
+### Single-Shot Mode (continuous_mode.enabled = false)
 Recording will automatically stop when:
 - Silence is detected for `silence_duration` seconds
 - Manual stop command is sent
+
+### Continuous Mode (continuous_mode.enabled = true)
+Recording will continue through silence periods and only stop when:
+- Maximum session duration is reached
+- Manual stop command is sent
+- Extended idle timeout (if auto_stop_on_idle is enabled)
+
+**Benefits of Continuous Mode:**
+- Natural speech patterns with pauses
+- No need to repeatedly trigger recording
+- Better for dictation and long-form content
+- Automatic audio feedback when transcription segments complete
 
 ## Model Selection
 | Model | Size | Use Case | Speed | Memory Usage |
