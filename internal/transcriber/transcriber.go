@@ -102,7 +102,6 @@ func (t *Transcriber) Start() error {
 		Language:           t.cfg.Whisper.Language,
 		AutoDetectLanguage: t.cfg.Whisper.AutoDetectLanguage,
 		SupportedLanguages: t.cfg.Whisper.SupportedLanguages,
-		Silent:             t.cfg.Whisper.Silent,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize whisper: %w", err)
@@ -141,7 +140,6 @@ func (t *Transcriber) Start() error {
 	// Start recording goroutine
 	go func() {
 		if err := t.recorder.Start(t.ctx, audioChan); err != nil {
-			// Don't log context cancelled as an error - it's expected when stopping
 			if err != context.Canceled {
 				t.logger.Printf("Recording error: %v", err)
 			}
@@ -151,7 +149,6 @@ func (t *Transcriber) Start() error {
 	// Start processing goroutine
 	go func() {
 		if err := t.processAudio(t.ctx, audioChan, transcriptionChan); err != nil {
-			// Don't log context cancelled as an error - it's expected when stopping
 			if err != context.Canceled {
 				t.logger.Printf("Processing error: %v", err)
 			}
@@ -243,9 +240,7 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 					}
 					t.mu.Unlock()
 
-					// Check if continuous mode is enabled
 					if t.cfg.Processing.ContinuousMode.Enabled {
-						// In continuous mode, continue recording after silence
 						if t.cfg.Verbose {
 							t.logger.Printf("Silence detected, processed buffer, waiting for new speech in continuous mode")
 						}

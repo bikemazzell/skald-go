@@ -145,21 +145,12 @@ func TestModelManager_EnsureModelExists(t *testing.T) {
 	defer server.Close()
 
 	// Create config with test model
-	cfg := &config.Config{
-		Whisper: struct {
-			Model    string                            `json:"model"`
-			Language string                            `json:"language"`
-			BeamSize int                               `json:"beam_size"`
-			Silent   bool                              `json:"silent"`
-			Models   map[string]config.WhisperModelInfo `json:"models"`
-		}{
-			Models: map[string]config.WhisperModelInfo{
-				"test-model": {
-					URL:    server.URL,
-					Size:   "1MB",
-					SHA256: expectedSHA256,
-				},
-			},
+	cfg := config.DefaultConfig()
+	cfg.Whisper.Models = map[string]config.WhisperModelInfo{
+		"test-model": {
+			URL:    server.URL,
+			Size:   "1MB",
+			SHA256: expectedSHA256,
 		},
 	}
 

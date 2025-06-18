@@ -19,11 +19,10 @@ import (
 var (
 	configPath string
 	verbose    bool
-	version    string // Will be set by linker during build
+	version    string
 )
 
 func init() {
-	// Parse command line flags
 	flag.StringVar(&configPath, "config", "config.json", "path to configuration file")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose logging")
 	flag.Parse()
@@ -41,15 +40,8 @@ func displayBanner() {
 func main() {
 	displayBanner()
 
-	// Create logger
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 	
-	// Set environment variable for whisper verbosity
-	if !verbose {
-		os.Setenv("WHISPER_SILENT", "1")
-	}
-
-	// Load configuration
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
 		logger.Fatalf("Failed to resolve config path: %v", err)
@@ -59,12 +51,12 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
-	cfg.Verbose = verbose // Set verbose flag from command line
+	cfg.Verbose = verbose
+	
 	if verbose {
 		logger.Printf("Configuration loaded from: %s", absConfigPath)
 	}
 
-	// Create model manager and ensure model exists
 	modelMgr := model.New(cfg, logger)
 	if err := modelMgr.Initialize(cfg.Whisper.Model); err != nil {
 		logger.Fatalf("Failed to ensure model exists: %v", err)
@@ -73,17 +65,14 @@ func main() {
 		logger.Printf("Model initialized successfully")
 	}
 
-	// Create and start server with model manager
 	srv, err := server.New(cfg, logger, modelMgr)
 	if err != nil {
 		logger.Fatalf("Failed to create server: %v", err)
 	}
 
-	// Setup signal handling
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start server in a goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		if err := srv.Start(); err != nil {
@@ -91,18 +80,15 @@ func main() {
 		}
 	}()
 
-	// Wait for shutdown signal
 	select {
 	case sig := <-sigChan:
 		logger.Printf("Received signal: %v", sig)
 		logger.Printf("Shutting down...")
 
-		// Create context with timeout for shutdown
 		ctx, cancel := context.WithTimeout(context.Background(),
 			time.Duration(cfg.Processing.ShutdownTimeout)*time.Second)
 		defer cancel()
 
-		// Attempt graceful shutdown
 		shutdownChan := make(chan struct{})
 		go func() {
 			if err := srv.Stop(); err != nil {
@@ -111,7 +97,6 @@ func main() {
 			close(shutdownChan)
 		}()
 
-		// Wait for shutdown or timeout
 		select {
 		case <-ctx.Done():
 			logger.Printf("Shutdown timeout exceeded, forcing exit")

@@ -10,7 +10,6 @@ func TestConfigLanguageSettings(t *testing.T) {
 		Language:           "en",
 		AutoDetectLanguage: false,
 		SupportedLanguages: []string{"en", "es", "fr"},
-		Silent:             true,
 	}
 	
 	if cfg.Language != "en" {
@@ -22,9 +21,6 @@ func TestConfigLanguageSettings(t *testing.T) {
 	if len(cfg.SupportedLanguages) != 3 {
 		t.Error("SupportedLanguages should have 3 languages")
 	}
-	if !cfg.Silent {
-		t.Error("Silent should be true")
-	}
 }
 
 func TestAutoDetectionConfig(t *testing.T) {
@@ -33,7 +29,6 @@ func TestAutoDetectionConfig(t *testing.T) {
 		Language:           "auto",
 		AutoDetectLanguage: true,
 		SupportedLanguages: []string{"en", "es", "fr", "de", "it"},
-		Silent:             true,
 	}
 	
 	if cfg.Language != "auto" {
@@ -58,7 +53,6 @@ func TestLanguageConfigValidation(t *testing.T) {
 		Language:           "en",
 		AutoDetectLanguage: false,
 		SupportedLanguages: supportedLangs,
-		Silent:             true,
 	}
 	
 	// Check that common languages are included

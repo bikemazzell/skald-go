@@ -57,7 +57,6 @@ func (m *ModelManager) GetModelPath() string {
 }
 
 func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error {
-	// Create a temporary file first
 	tmpPath := destPath + ".tmp"
 	out, err := os.Create(tmpPath)
 	if err != nil {
@@ -65,23 +64,21 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 	}
 	defer func() {
 		out.Close()
-		os.Remove(tmpPath) // Clean up temp file if still exists
+		os.Remove(tmpPath)
 	}()
 
-	// Create HTTP client with secure TLS config
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
 	}
 	
-	// For testing, allow self-signed certificates from test servers
 	if strings.HasPrefix(url, "https://127.0.0.1") || strings.HasPrefix(url, "https://localhost") {
 		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
 	
 	client := &http.Client{
-		Timeout: 30 * time.Minute, // Large models may take time
+		Timeout: 30 * time.Minute,
 		Transport: transport,
 	}
 
@@ -95,7 +92,6 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
 
-	// Create SHA256 hasher
 	hasher := sha256.New()
 
 	counter := &WriteCounter{
@@ -104,19 +100,16 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 		logger:   m.logger,
 	}
 
-	// Write to both file and hasher
 	multiWriter := io.MultiWriter(out, hasher, counter)
 	_, err = io.Copy(multiWriter, resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
 
-	// Close the file before moving
 	if err := out.Close(); err != nil {
 		return fmt.Errorf("failed to close file: %w", err)
 	}
 
-	// Verify checksum if provided
 	if expectedSHA256 != "" {
 		actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
 		if actualSHA256 != expectedSHA256 {
@@ -125,12 +118,10 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 		m.logger.Printf("Checksum verified: %s", actualSHA256)
 	}
 
-	// Move temp file to final destination
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		return fmt.Errorf("failed to move file to final destination: %w", err)
 	}
 
-	// Set restrictive permissions on the model file
 	if err := os.Chmod(destPath, 0644); err != nil {
 		m.logger.Printf("Warning: failed to set permissions on model file: %v", err)
 	}
@@ -178,7 +169,6 @@ func (m *ModelManager) EnsureModelExists(modelName string) error {
 		}
 		m.logger.Printf("Model %s downloaded successfully", modelName)
 	} else if modelInfo.SHA256 != "" {
-		// Verify existing model checksum
 		if err := m.verifyModelChecksum(modelPath, modelInfo.SHA256); err != nil {
 			m.logger.Printf("Warning: %v. Re-downloading model...", err)
 			if err := m.downloadModel(modelInfo.URL, modelPath, modelInfo.SHA256); err != nil {
@@ -190,7 +180,6 @@ func (m *ModelManager) EnsureModelExists(modelName string) error {
 	return nil
 }
 
-// verifyModelChecksum verifies the SHA256 checksum of a model file
 func (m *ModelManager) verifyModelChecksum(filePath, expectedSHA256 string) error {
 	file, err := os.Open(filePath)
 	if err != nil {

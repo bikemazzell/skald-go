@@ -21,14 +21,12 @@ type Response struct {
 }
 
 func main() {
-	// Parse command line arguments
 	cfg, err := config.Load("config.json")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Define command line flags
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [start|stop|status]\n", os.Args[0])
 		flag.PrintDefaults()

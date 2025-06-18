@@ -11,12 +11,4 @@ cd "$SCRIPT_DIR"
 
 echo "Starting Skald-Go server..."
 
-# Check if config says to be silent
-if grep -q '"silent": true' config.json; then
-    echo "Running in silent mode..."
-    # Redirect stderr to suppress whisper.cpp verbose output
-    LD_LIBRARY_PATH="$SCRIPT_DIR/lib" ./bin/skald-server 2>/dev/null
-else
-    echo "Running with verbose whisper output..."
-    LD_LIBRARY_PATH="$SCRIPT_DIR/lib" ./bin/skald-server
-fi
+LD_LIBRARY_PATH="$SCRIPT_DIR/lib" ./bin/skald-server

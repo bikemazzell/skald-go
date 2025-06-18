@@ -32,7 +32,6 @@ func NewRecorder(cfg *config.Config, logger *log.Logger) (*Recorder, error) {
 	}, nil
 }
 
-// ToneConfig represents configuration for playing audio tones
 type ToneConfig struct {
 	Enabled   bool
 	Frequency int
@@ -81,7 +80,6 @@ func (r *Recorder) playTone(toneConfig ToneConfig) error {
 	deviceConfig.SampleRate = uint32(r.cfg.Audio.SampleRate)
 	deviceConfig.Alsa.NoMMap = 1
 
-	// Calculate total samples needed for the duration
 	totalSamples := (r.cfg.Audio.SampleRate * toneConfig.Duration) / 1000
 
 	doneChan := make(chan struct{})
@@ -165,7 +163,6 @@ func (r *Recorder) Start(ctx context.Context, samples chan<- []float32) error {
 	deviceConfig.SampleRate = uint32(r.cfg.Audio.SampleRate)
 	deviceConfig.Alsa.NoMMap = 1
 
-	// Use default audio device (device selection will be implemented later)
 	if r.cfg.Verbose {
 		if r.cfg.Audio.DeviceIndex >= 0 {
 			r.logger.Printf("Note: Specific device selection not yet implemented, using default device")
@@ -177,10 +174,8 @@ func (r *Recorder) Start(ctx context.Context, samples chan<- []float32) error {
 	var err error
 	r.device, err = malgo.InitDevice(r.context.Context, deviceConfig, malgo.DeviceCallbacks{
 		Data: func(outputSamples, inputSamples []byte, framecount uint32) {
-			// Convert input bytes to float32 samples
 			floatSamples := make([]float32, framecount)
 			for i := range floatSamples {
-				// Convert 4 bytes to float32 (little-endian)
 				bits := uint32(inputSamples[i*4]) |
 					uint32(inputSamples[i*4+1])<<8 |
 					uint32(inputSamples[i*4+2])<<16 |
@@ -188,14 +183,13 @@ func (r *Recorder) Start(ctx context.Context, samples chan<- []float32) error {
 				floatSamples[i] = math.Float32frombits(bits)
 			}
 
-			// Debug: Calculate RMS to detect if we're getting audio input
 			if r.cfg.Verbose {
 				var sum float32
 				for _, sample := range floatSamples {
 					sum += sample * sample
 				}
 				rms := math.Sqrt(float64(sum / float32(len(floatSamples))))
-				if rms > 0.001 { // Only log when there's some audio
+				if rms > 0.001 {
 					r.logger.Printf("Audio input RMS: %.6f (samples: %d)", rms, len(floatSamples))
 				}
 			}

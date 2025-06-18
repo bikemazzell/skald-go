@@ -5,9 +5,15 @@ BINARY_NAME=skald-server
 CLIENT_NAME=skald-client
 BUILD_DIR=bin
 
-# Version from git tag (with fallback)
-VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-GO_LDFLAGS=-ldflags "-X main.version=${VERSION}"
+# Version from VERSION file (with git info as suffix in dev)
+VERSION=$(shell cat VERSION 2>/dev/null || echo "0.0.0")
+GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+ifeq ($(shell git diff --quiet; echo $$?), 1)
+    VERSION_STRING=${VERSION}-dev+${GIT_COMMIT}-dirty
+else
+    VERSION_STRING=${VERSION}
+endif
+GO_LDFLAGS=-ldflags "-X main.version=${VERSION_STRING}"
 
 # Whisper paths
 WHISPER_PATH=$(shell pwd)/deps/whisper.cpp

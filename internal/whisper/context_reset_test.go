@@ -43,7 +43,6 @@ func TestWhisperConfiguration(t *testing.T) {
 			config: Config{
 				Language:           "auto",
 				AutoDetectLanguage: true,
-				Silent:             false,
 			},
 			expectedBehavior: "Should set language to 'auto' for multilingual models",
 		},
@@ -52,17 +51,15 @@ func TestWhisperConfiguration(t *testing.T) {
 			config: Config{
 				Language:           "en",
 				AutoDetectLanguage: false,
-				Silent:             false,
 			},
 			expectedBehavior: "Should use fixed language 'en'",
 		},
 		{
-			name: "Silent mode",
+			name: "Fixed language mode",
 			config: Config{
 				Language: "en",
-				Silent:   true,
 			},
-			expectedBehavior: "Should suppress whisper.cpp logging output",
+			expectedBehavior: "Should use fixed language",
 		},
 	}
 	

@@ -17,19 +17,16 @@ import (
 	"skald/internal/transcriber"
 )
 
-// Command represents a client command
 type Command struct {
-	Action string `json:"action"` // "start", "stop", or "status"
+	Action string `json:"action"`
 }
 
-// Response represents a server response
 type Response struct {
 	Status  string `json:"status"`
 	Message string `json:"message,omitempty"`
 	Error   string `json:"error,omitempty"`
 }
 
-// KeyAction represents a keyboard action
 type KeyAction struct {
 	Key     rune
 	Action  string
@@ -37,7 +34,6 @@ type KeyAction struct {
 	Handler func() error
 }
 
-// Server handles client connections and manages the transcriber
 type Server struct {
 	cfg         *config.Config
 	transcriber *transcriber.Transcriber
@@ -50,14 +46,12 @@ type Server struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 
-	// Keyboard interaction
 	keyActions     []KeyAction
 	keyboardActive bool
 	keyboardCtx    context.Context
 	keyboardCancel context.CancelFunc
 }
 
-// New creates a new Server instance
 func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Server, error) {
 	t, err := transcriber.New(cfg, logger, modelMgr)
 	if err != nil {
@@ -71,17 +65,14 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 		modelMgr:    modelMgr,
 	}
 
-	// Setup keyboard actions
 	s.setupKeyActions()
 
 	return s, nil
 }
 
-// setupKeyActions configures the available keyboard actions from configuration
 func (s *Server) setupKeyActions() {
 	s.keyActions = []KeyAction{}
 	
-	// Create available action handlers
 	actionHandlers := map[string]func() error{
 		"start": func() error {
 			err := s.transcriber.Start()
@@ -109,20 +100,16 @@ func (s *Server) setupKeyActions() {
 		"quit": func() error {
 			s.logger.Printf("Quit requested via keyboard")
 
-			// Cancel the context to signal shutdown first
 			if s.cancel != nil {
 				s.cancel()
 			}
 
-			// Stop the server
 			if err := s.Stop(); err != nil {
 				s.logger.Printf("Error stopping server: %v", err)
 			}
 
-			// Exit the application
 			s.logger.Printf("Exiting application...")
 			go func() {
-				// Give a short delay to allow logs to be written
 				time.Sleep(100 * time.Millisecond)
 				os.Exit(0)
 			}()
@@ -132,15 +119,12 @@ func (s *Server) setupKeyActions() {
 			return s.printKeyboardHelp()
 		},
 		"resume": func() error {
-			// Force resume recording in continuous mode
 			s.logger.Printf("Manual resume requested")
-			// This is a placeholder - actual implementation would need transcriber access
 			fmt.Println("\nManual resume triggered (not yet implemented)")
 			return nil
 		},
 	}
 	
-	// Action descriptions
 	actionDescs := map[string]string{
 		"start":  "Start transcription",
 		"stop":   "Stop transcription", 
@@ -150,7 +134,6 @@ func (s *Server) setupKeyActions() {
 		"resume": "Resume continuous recording",
 	}
 	
-	// Build key actions from configuration
 	for keyStr, action := range s.cfg.Server.Hotkeys {
 		if len(keyStr) != 1 {
 			s.logger.Printf("Warning: Invalid hotkey '%s' - must be single character", keyStr)
@@ -182,7 +165,6 @@ func (s *Server) setupKeyActions() {
 	}
 }
 
-// printKeyboardHelp displays available keyboard commands
 func (s *Server) printKeyboardHelp() error {
 	fmt.Println("\nAvailable commands:")
 	for _, action := range s.keyActions {
@@ -192,7 +174,6 @@ func (s *Server) printKeyboardHelp() error {
 	return nil
 }
 
-// Start begins listening for connections
 func (s *Server) Start() error {
 	s.mu.Lock()
 	if s.isRunning {
@@ -200,29 +181,24 @@ func (s *Server) Start() error {
 		return fmt.Errorf("server already running")
 	}
 
-	// Create context
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
-	// Check if socket path is safe to use
 	if err := s.ensureSocketPathIsSafe(); err != nil {
 		s.mu.Unlock()
 		return fmt.Errorf("socket path is unsafe: %w", err)
 	}
 
-	// Remove existing socket file if it exists
 	if err := os.Remove(s.cfg.Server.SocketPath); err != nil && !os.IsNotExist(err) {
 		s.mu.Unlock()
 		return fmt.Errorf("failed to remove existing socket: %w", err)
 	}
 
-	// Create Unix domain socket
 	listener, err := net.Listen("unix", s.cfg.Server.SocketPath)
 	if err != nil {
 		s.mu.Unlock()
 		return fmt.Errorf("failed to create socket: %w", err)
 	}
 
-	// Set restrictive permissions on the socket (owner read/write only)
 	if err := os.Chmod(s.cfg.Server.SocketPath, 0600); err != nil {
 		listener.Close()
 		s.mu.Unlock()
@@ -237,16 +213,12 @@ func (s *Server) Start() error {
 		s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
 	}
 
-	// Start keyboard listener in a separate goroutine if enabled
 	if s.cfg.Server.KeyboardEnabled {
 		s.startKeyboardListener()
-		// Print available keyboard commands
 		s.printKeyboardHelp()
 	}
 
-	// Accept connections
 	for {
-		// Use a deadline to allow for graceful shutdown
 		if err := s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(1 * time.Second)); err != nil {
 			s.logger.Printf("Failed to set deadline: %v", err)
 		}
@@ -255,19 +227,14 @@ func (s *Server) Start() error {
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
-				// Normal shutdown, return without error
 				return nil
 			default:
-				// Check if it's a timeout error, which we can ignore
 				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					// This is just a timeout, continue the loop
 					continue
 				}
-				// If the listener is closed, exit gracefully
 				if strings.Contains(err.Error(), "use of closed network connection") {
 					return nil
 				}
-				// Otherwise, it's an unexpected error
 				return fmt.Errorf("accept error: %w", err)
 			}
 		}
@@ -275,7 +242,6 @@ func (s *Server) Start() error {
 	}
 }
 
-// startKeyboardListener starts a goroutine to listen for keyboard input
 func (s *Server) startKeyboardListener() {
 	s.keyboardCtx, s.keyboardCancel = context.WithCancel(s.ctx)
 	s.keyboardActive = true
@@ -289,29 +255,24 @@ func (s *Server) startKeyboardListener() {
 			s.logger.Printf("Keyboard listener started. Press '?' for help.")
 		}
 
-		// Buffer for reading a single character
 		var b = make([]byte, 1)
 		for {
 			select {
 			case <-s.keyboardCtx.Done():
 				return
 			default:
-				// Non-blocking read from stdin
 				_ = os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 				_, err := os.Stdin.Read(b)
 				if err != nil {
-					// Timeout or other error, just continue
 					continue
 				}
 
-				// Process the key
 				s.handleKeyPress(rune(b[0]))
 			}
 		}
 	}()
 }
 
-// handleKeyPress processes keyboard input
 func (s *Server) handleKeyPress(key rune) {
 	for _, action := range s.keyActions {
 		if action.Key == key {
@@ -326,12 +287,10 @@ func (s *Server) handleKeyPress(key rune) {
 	}
 }
 
-// handleConnection processes a client connection
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	s.logger.Printf("New connection received")
 
-	// Read command
 	decoder := json.NewDecoder(conn)
 	var cmd Command
 	if err := decoder.Decode(&cmd); err != nil {
@@ -340,7 +299,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	s.logger.Printf("Received command: %s", cmd.Action)
 
-	// Process command and prepare response
 	var resp Response
 	switch cmd.Action {
 	case "start":
@@ -368,7 +326,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 		}
 	case "status":
-		// Get transcriber status
 		isRunning := s.transcriber.IsRunning()
 		resp = Response{
 			Status:  "success",
@@ -381,7 +338,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 	}
 
-	// Send response
 	if err := json.NewEncoder(conn).Encode(resp); err != nil {
 		s.logger.Printf("Failed to encode response: %v", err)
 		return
@@ -390,11 +346,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 }
 
 
-// Stop gracefully shuts down the server
 func (s *Server) Stop() error {
 	s.logger.Printf("Stopping server...")
 
-	// Stop keyboard listener
 	if s.keyboardActive && s.keyboardCancel != nil {
 		s.keyboardCancel()
 	}
@@ -414,7 +368,6 @@ func (s *Server) Stop() error {
 	return nil
 }
 
-// Add error types for better error handling
 type ServerError struct {
 	Code    string
 	Message string
@@ -442,19 +395,15 @@ func NewServerError(code string, message string, err error) *ServerError {
 	}
 }
 
-// ensureSocketPathIsSafe checks if the socket path is safe to use
 func (s *Server) ensureSocketPathIsSafe() error {
-	// Validate socket path
 	if s.cfg.Server.SocketPath == "" {
 		return fmt.Errorf("socket path cannot be empty")
 	}
 
-	// Check if the socket path is absolute
 	if !filepath.IsAbs(s.cfg.Server.SocketPath) {
 		return fmt.Errorf("socket path must be absolute")
 	}
 
-	// Check if the directory exists and is writable
 	dir := filepath.Dir(s.cfg.Server.SocketPath)
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -464,27 +413,20 @@ func (s *Server) ensureSocketPathIsSafe() error {
 		return fmt.Errorf("failed to stat socket directory: %w", err)
 	}
 
-	// Check if it's a directory
 	if !info.IsDir() {
 		return fmt.Errorf("socket path parent is not a directory")
 	}
 
-	// Check if the socket file exists and is a socket
 	if info, err := os.Stat(s.cfg.Server.SocketPath); err == nil {
-		// File exists, check if it's a socket
 		if info.Mode()&os.ModeSocket == 0 {
-			// Not a socket, could be a regular file or something else
 			return fmt.Errorf("path exists but is not a socket")
 		}
 
-		// It's a socket, check if it's stale
 		conn, err := net.Dial("unix", s.cfg.Server.SocketPath)
 		if err == nil {
-			// Socket is active
 			conn.Close()
 			return fmt.Errorf("socket is already in use by another process")
 		}
-		// Socket is stale, we can remove it
 	}
 
 	return nil

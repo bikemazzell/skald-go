@@ -10,33 +10,9 @@ import (
 )
 
 func TestProcessor_SilenceDetection(t *testing.T) {
-	cfg := &config.Config{
-		Audio: struct {
-			SampleRate           int     `json:"sample_rate"`
-			Channels             int     `json:"channels"`
-			SilenceThreshold     float32 `json:"silence_threshold"`
-			SilenceDuration      float32 `json:"silence_duration"`
-			ChunkDuration        int     `json:"chunk_duration"`
-			MaxDuration          int     `json:"max_duration"`
-			BufferSizeMultiplier int     `json:"buffer_size_multiplier"`
-			FrameLength          int     `json:"frame_length"`
-			BufferedFrames       int     `json:"buffered_frames"`
-			DeviceIndex          int     `json:"device_index"`
-			StartTone            struct {
-				Enabled   bool `json:"enabled"`
-				Frequency int  `json:"frequency"`
-				Duration  int  `json:"duration"`
-				FadeMs    int  `json:"fade_ms"`
-			} `json:"start_tone"`
-		}{
-			SampleRate:       16000,
-			Channels:         1,
-			SilenceThreshold: 0.01,
-			SilenceDuration:  1.0, // 1 second
-			FrameLength:      512,
-			BufferedFrames:   10,
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Audio.SilenceThreshold = 0.01
+	cfg.Audio.SilenceDuration = 1.0 // 1 second
 
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	processor, err := NewProcessor(cfg, logger)
@@ -111,32 +87,8 @@ func TestProcessor_SilenceDetection(t *testing.T) {
 }
 
 func TestProcessor_BufferManagement(t *testing.T) {
-	cfg := &config.Config{
-		Audio: struct {
-			SampleRate           int     `json:"sample_rate"`
-			Channels             int     `json:"channels"`
-			SilenceThreshold     float32 `json:"silence_threshold"`
-			SilenceDuration      float32 `json:"silence_duration"`
-			ChunkDuration        int     `json:"chunk_duration"`
-			MaxDuration          int     `json:"max_duration"`
-			BufferSizeMultiplier int     `json:"buffer_size_multiplier"`
-			FrameLength          int     `json:"frame_length"`
-			BufferedFrames       int     `json:"buffered_frames"`
-			DeviceIndex          int     `json:"device_index"`
-			StartTone            struct {
-				Enabled   bool `json:"enabled"`
-				Frequency int  `json:"frequency"`
-				Duration  int  `json:"duration"`
-				FadeMs    int  `json:"fade_ms"`
-			} `json:"start_tone"`
-		}{
-			SampleRate:       16000,
-			Channels:         1,
-			SilenceThreshold: 0.01,
-			FrameLength:      512,
-			BufferedFrames:   10,
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Audio.SilenceThreshold = 0.01
 
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	processor, err := NewProcessor(cfg, logger)
@@ -241,30 +193,7 @@ func TestProcessor_VolumeCalculation(t *testing.T) {
 }
 
 func TestProcessor_ConcurrentAccess(t *testing.T) {
-	cfg := &config.Config{
-		Audio: struct {
-			SampleRate           int     `json:"sample_rate"`
-			Channels             int     `json:"channels"`
-			SilenceThreshold     float32 `json:"silence_threshold"`
-			SilenceDuration      float32 `json:"silence_duration"`
-			ChunkDuration        int     `json:"chunk_duration"`
-			MaxDuration          int     `json:"max_duration"`
-			BufferSizeMultiplier int     `json:"buffer_size_multiplier"`
-			FrameLength          int     `json:"frame_length"`
-			BufferedFrames       int     `json:"buffered_frames"`
-			DeviceIndex          int     `json:"device_index"`
-			StartTone            struct {
-				Enabled   bool `json:"enabled"`
-				Frequency int  `json:"frequency"`
-				Duration  int  `json:"duration"`
-				FadeMs    int  `json:"fade_ms"`
-			} `json:"start_tone"`
-		}{
-			SampleRate:  16000,
-			Channels:    1,
-			FrameLength: 512,
-		},
-	}
+	cfg := config.DefaultConfig()
 
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 	processor, err := NewProcessor(cfg, logger)

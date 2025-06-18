@@ -10,33 +10,10 @@ import (
 
 func TestProcessor(t *testing.T) {
 	// Create a test configuration with smaller buffer for testing
-	cfg := &config.Config{
-		Audio: struct {
-			SampleRate           int     `json:"sample_rate"`
-			Channels             int     `json:"channels"`
-			SilenceThreshold     float32 `json:"silence_threshold"`
-			SilenceDuration      float32 `json:"silence_duration"`
-			ChunkDuration        int     `json:"chunk_duration"`
-			MaxDuration          int     `json:"max_duration"`
-			BufferSizeMultiplier int     `json:"buffer_size_multiplier"`
-			FrameLength          int     `json:"frame_length"`
-			BufferedFrames       int     `json:"buffered_frames"`
-			DeviceIndex          int     `json:"device_index"`
-			StartTone            struct {
-				Enabled   bool `json:"enabled"`
-				Frequency int  `json:"frequency"`
-				Duration  int  `json:"duration"`
-				FadeMs    int  `json:"fade_ms"`
-			} `json:"start_tone"`
-		}{
-			SampleRate:       16000,
-			Channels:         1,
-			SilenceThreshold: 0.01,
-			SilenceDuration:  0.5, // Shorter duration for testing
-			FrameLength:      512,
-			BufferedFrames:   2,   // Smaller buffer for testing
-		},
-	}
+	cfg := config.DefaultConfig()
+	cfg.Audio.SilenceThreshold = 0.01
+	cfg.Audio.SilenceDuration = 0.5  // Shorter duration for testing
+	cfg.Audio.BufferedFrames = 2     // Smaller buffer for testing
 
 	logger := log.New(os.Stdout, "TEST: ", log.LstdFlags)
 

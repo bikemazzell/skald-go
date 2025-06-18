@@ -53,7 +53,6 @@
         "auto_detect_language": false,
         "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"],
         "beam_size": 5,
-        "silent": true,
         "models": {
             "tiny": {
                 "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",

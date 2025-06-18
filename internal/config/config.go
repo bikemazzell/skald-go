@@ -7,17 +7,15 @@ import (
 	"path/filepath"
 )
 
-// WhisperModelInfo contains model metadata
 type WhisperModelInfo struct {
 	URL      string `json:"url"`
 	Size     string `json:"size"`
 	SHA256   string `json:"sha256,omitempty"`
 }
 
-// Config represents the application configuration
 type Config struct {
 	Version string `json:"version"`
-	Verbose bool   `json:"-"` // Not from JSON, set via command line
+	Verbose bool   `json:"-"`
 	Audio   struct {
 		SampleRate           int     `json:"sample_rate"`
 		Channels             int     `json:"channels"`
@@ -71,7 +69,6 @@ type Config struct {
 		AutoDetectLanguage bool                        `json:"auto_detect_language"`
 		SupportedLanguages []string                    `json:"supported_languages,omitempty"`
 		BeamSize           int                         `json:"beam_size"`
-		Silent             bool                        `json:"silent"`
 		Models             map[string]WhisperModelInfo `json:"models"`
 	} `json:"whisper"`
 	Server struct {
@@ -86,7 +83,6 @@ type Config struct {
 	} `json:"debug"`
 }
 
-// DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
 		Version: "0.1",
@@ -192,8 +188,8 @@ func DefaultConfig() *Config {
 				AutoStopOnIdle       bool `json:"auto_stop_on_idle"`
 			}{
 				Enabled:              true,
-				MaxSessionDuration:   300, // 5 minutes
-				InterSpeechTimeout:   10,  // 10 seconds
+				MaxSessionDuration:   300,
+				InterSpeechTimeout:   10,
 				AutoStopOnIdle:       true,
 			},
 			TextValidation: struct {
@@ -212,15 +208,13 @@ func DefaultConfig() *Config {
 			AutoDetectLanguage bool                        `json:"auto_detect_language"`
 			SupportedLanguages []string                    `json:"supported_languages,omitempty"`
 			BeamSize           int                         `json:"beam_size"`
-			Silent             bool                        `json:"silent"`
-			Models             map[string]WhisperModelInfo `json:"models"`
+				Models             map[string]WhisperModelInfo `json:"models"`
 		}{
 			Model:              "large-v3-turbo-q8_0",
 			Language:           "en",
 			AutoDetectLanguage: false,
 			SupportedLanguages: []string{"en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"},
 			BeamSize:           5,
-			Silent:             false,
 			Models: map[string]WhisperModelInfo{
 				"tiny.en": {
 					URL:  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
@@ -260,19 +254,15 @@ func DefaultConfig() *Config {
 	}
 }
 
-// Load reads configuration from a file
 func Load(path string) (*Config, error) {
-	// Get absolute path
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve config path: %w", err)
 	}
 
-	// Read file
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Create default config if file doesn't exist
 			cfg := DefaultConfig()
 			if err := Save(absPath, cfg); err != nil {
 				return nil, fmt.Errorf("failed to create default config: %w", err)
@@ -282,13 +272,11 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Parse JSON
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -296,21 +284,17 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Save writes configuration to a file
 func Save(path string, cfg *Config) error {
-	// Create directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Marshal JSON with indentation
 	data, err := json.MarshalIndent(cfg, "", "    ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Write file with restrictive permissions (readable by owner and group only)
 	if err := os.WriteFile(path, data, 0640); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
@@ -318,28 +302,23 @@ func Save(path string, cfg *Config) error {
 	return nil
 }
 
-// Validate checks if the configuration is valid
 func (c *Config) Validate() error {
 	if c.Version == "" {
 		return fmt.Errorf("version cannot be empty")
 	}
 
-	// Basic validation
 	if err := c.validateBasicSettings(); err != nil {
 		return err
 	}
 
-	// Audio validation
 	if err := c.validateAudioSettings(); err != nil {
 		return err
 	}
 
-	// Processing validation
 	if err := c.validateProcessingSettings(); err != nil {
 		return err
 	}
 
-	// Whisper validation
 	if err := c.validateWhisperSettings(); err != nil {
 		return err
 	}
@@ -347,7 +326,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// validateBasicSettings validates the basic configuration settings
 func (c *Config) validateBasicSettings() error {
 	if c.Server.SocketPath == "" {
 		return fmt.Errorf("server.socket_path cannot be empty")
@@ -358,15 +336,12 @@ func (c *Config) validateBasicSettings() error {
 	return nil
 }
 
-// validateWhisperSettings validates the Whisper-related settings
 func (c *Config) validateWhisperSettings() error {
-	// Check if selected model exists in models map
 	modelInfo, exists := c.Whisper.Models[c.Whisper.Model]
 	if !exists {
 		return fmt.Errorf("model '%s' not found in models configuration", c.Whisper.Model)
 	}
 
-	// Validate model info
 	if modelInfo.URL == "" {
 		return fmt.Errorf("URL for model %s cannot be empty", c.Whisper.Model)
 	}
@@ -385,7 +360,6 @@ func (c *Config) validateWhisperSettings() error {
 	return nil
 }
 
-// validateAudioSettings validates the audio-related settings
 func (c *Config) validateAudioSettings() error {
 	if c.Audio.SampleRate <= 0 {
 		return fmt.Errorf("sample rate must be positive")
@@ -411,7 +385,6 @@ func (c *Config) validateAudioSettings() error {
 	return nil
 }
 
-// validateProcessingSettings validates the processing-related settings
 func (c *Config) validateProcessingSettings() error {
 	if c.Processing.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive")

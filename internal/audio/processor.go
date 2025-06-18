@@ -9,7 +9,6 @@ import (
 	"skald/internal/config"
 )
 
-// Processor handles audio processing and silence detection
 type Processor struct {
 	cfg                      *config.Config
 	logger                   *log.Logger
@@ -18,9 +17,7 @@ type Processor struct {
 	consecutiveSilentSamples int
 }
 
-// NewProcessor creates a new audio processor
 func NewProcessor(cfg *config.Config, logger *log.Logger) (*Processor, error) {
-	// Calculate buffer size using frame settings from config
 	bufferSize := cfg.Audio.SampleRate * cfg.Audio.FrameLength * cfg.Audio.BufferedFrames
 
 	if cfg.Verbose {
@@ -37,9 +34,7 @@ func NewProcessor(cfg *config.Config, logger *log.Logger) (*Processor, error) {
 	}, nil
 }
 
-// Process handles incoming audio data
 func (p *Processor) Process(ctx context.Context, samples []float32, outChan chan<- []float32) error {
-	// Check for silence
 	if p.isSilent(samples) {
 		p.silenceDuration += float32(len(samples)) / float32(p.cfg.Audio.SampleRate)
 		if p.silenceDuration >= p.cfg.Audio.SilenceDuration {
@@ -49,13 +44,11 @@ func (p *Processor) Process(ctx context.Context, samples []float32, outChan chan
 		p.silenceDuration = 0
 	}
 
-	// Write to buffer
 	_, err := p.buffer.Write(samples)
 	if err != nil {
 		return fmt.Errorf("buffer write error: %w", err)
 	}
 
-	// Check if we have enough data for a chunk
 	frameSize := p.cfg.Audio.FrameLength * p.cfg.Audio.BufferedFrames
 	if p.buffer.Available() >= frameSize {
 		chunk := p.buffer.Read(frameSize)
@@ -63,14 +56,12 @@ func (p *Processor) Process(ctx context.Context, samples []float32, outChan chan
 		case <-ctx.Done():
 			return ctx.Err()
 		case outChan <- chunk:
-			// Chunk sent successfully
 		}
 	}
 
 	return nil
 }
 
-// isSilent determines if an audio segment is silent
 func (p *Processor) isSilent(samples []float32) bool {
 	if len(samples) == 0 {
 		return true
@@ -94,19 +85,16 @@ func (p *Processor) isSilent(samples []float32) bool {
 	return isSilent
 }
 
-// Clear resets the processor state
 func (p *Processor) Clear() {
 	p.silenceDuration = 0
 	p.consecutiveSilentSamples = 0
 	p.buffer.Clear()
 }
 
-// ProcessBuffer writes a buffer of audio data to the processor's buffer
 func (p *Processor) ProcessBuffer(buffer []float32) (int, error) {
 	return p.buffer.Write(buffer)
 }
 
-// ProcessSamples processes a chunk of audio samples
 func (p *Processor) ProcessSamples(samples []float32) error {
 	if len(samples) == 0 {
 		return nil
@@ -143,7 +131,6 @@ func (p *Processor) ProcessSamples(samples []float32) error {
 	return nil
 }
 
-// GetBuffer returns the current audio buffer
 func (p *Processor) GetBuffer() []float32 {
 	available := p.buffer.Available()
 	if available == 0 {
@@ -152,7 +139,6 @@ func (p *Processor) GetBuffer() []float32 {
 	return p.buffer.Read(available)
 }
 
-// ClearBuffer clears the audio buffer
 func (p *Processor) ClearBuffer() {
 	p.buffer.Clear()
 	p.silenceDuration = 0
