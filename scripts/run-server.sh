@@ -20,9 +20,8 @@ fi
 
 # Check if config says to be silent
 if grep -q '"silent": true' config.json; then
-    echo "Running in silent mode..."
-    # Redirect stderr to suppress whisper.cpp verbose output
-    LD_LIBRARY_PATH="$PROJECT_ROOT/lib" ./bin/skald-server 2>/dev/null
+    echo "Running in silent mode (pass --verbose for debug info)..."
+    LD_LIBRARY_PATH="$PROJECT_ROOT/lib" ./bin/skald-server "$@"
 else
     echo "Running with verbose whisper output..."
     LD_LIBRARY_PATH="$PROJECT_ROOT/lib" ./bin/skald-server

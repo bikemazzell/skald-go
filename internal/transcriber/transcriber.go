@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -98,13 +99,28 @@ func (t *Transcriber) Start() error {
 
 	// Initialize whisper
 	whisperInstance, err := whisper.New(modelPath, whisper.Config{
-		Language: t.cfg.Whisper.Language,
-		Silent:   t.cfg.Whisper.Silent,
+		Language:           t.cfg.Whisper.Language,
+		AutoDetectLanguage: t.cfg.Whisper.AutoDetectLanguage,
+		SupportedLanguages: t.cfg.Whisper.SupportedLanguages,
+		Silent:             t.cfg.Whisper.Silent,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize whisper: %w", err)
 	}
 	t.whisper = whisperInstance
+
+	// Log language configuration
+	if t.cfg.Whisper.AutoDetectLanguage && t.whisper.IsMultilingual() {
+		if t.cfg.Verbose {
+			t.logger.Printf("Language auto-detection enabled for multilingual model")
+			supportedLangs := t.whisper.GetSupportedLanguages()
+			t.logger.Printf("Supported languages: %v", supportedLangs[:10]) // Show first 10 languages
+		}
+	} else {
+		if t.cfg.Verbose {
+			t.logger.Printf("Using fixed language: %s", t.cfg.Whisper.Language)
+		}
+	}
 
 	// Create context with timeout if continuous mode has max session duration
 	if t.cfg.Processing.ContinuousMode.Enabled && t.cfg.Processing.ContinuousMode.MaxSessionDuration > 0 {
@@ -125,14 +141,20 @@ func (t *Transcriber) Start() error {
 	// Start recording goroutine
 	go func() {
 		if err := t.recorder.Start(t.ctx, audioChan); err != nil {
-			t.logger.Printf("Recording error: %v", err)
+			// Don't log context cancelled as an error - it's expected when stopping
+			if err != context.Canceled {
+				t.logger.Printf("Recording error: %v", err)
+			}
 		}
 	}()
 
 	// Start processing goroutine
 	go func() {
 		if err := t.processAudio(t.ctx, audioChan, transcriptionChan); err != nil {
-			t.logger.Printf("Processing error: %v", err)
+			// Don't log context cancelled as an error - it's expected when stopping
+			if err != context.Canceled {
+				t.logger.Printf("Processing error: %v", err)
+			}
 		}
 	}()
 
@@ -192,8 +214,23 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 			t.logger.Printf("Context cancelled, stopping audio processing")
 			return nil
 		case samples := <-audioChan:
+			if t.cfg.Verbose {
+				// Calculate RMS for main processing loop debugging
+				var sum float32
+				for _, sample := range samples {
+					sum += sample * sample
+				}
+				rms := math.Sqrt(float64(sum / float32(len(samples))))
+				if rms > 0.001 { // Only log when there's significant audio
+					t.logger.Printf("Main loop - Processing audio RMS: %.6f", rms)
+				}
+			}
+			
 			if err := t.processor.ProcessSamples(samples); err != nil {
 				if err == audio.ErrSilenceDetected {
+					if t.cfg.Verbose {
+						t.logger.Printf("Silence detected in main processing loop")
+					}
 					// Use a mutex to safely access the processor
 					t.mu.Lock()
 					audioData := t.processor.GetBuffer()
@@ -204,18 +241,27 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 							return fmt.Errorf("failed to process buffer: %w", err)
 						}
 					}
-					t.processor.ClearBuffer()
 					t.mu.Unlock()
 
 					// Check if continuous mode is enabled
 					if t.cfg.Processing.ContinuousMode.Enabled {
 						// In continuous mode, continue recording after silence
 						if t.cfg.Verbose {
-							t.logger.Printf("Silence detected, continuing in continuous mode")
+							t.logger.Printf("Silence detected, processed buffer, waiting for new speech in continuous mode")
 						}
+						
+						// Enter waiting-for-speech state in continuous mode
+						err := t.waitForNewSpeechInContinuousMode(ctx, audioChan, transcriptionChan)
+						if err != nil {
+							if t.cfg.Verbose {
+								t.logger.Printf("Continuous mode wait ended: %v", err)
+							}
+							return err
+						}
+						// If we get here, new speech was detected and processed, continue the main loop
 						continue
 					} else {
-						// Call Stop() outside the lock to avoid deadlock
+						// Single-shot mode: stop after silence
 						if err := t.Stop(); err != nil {
 							t.logger.Printf("Error stopping transcriber: %v", err)
 						}
@@ -230,33 +276,77 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 
 func (t *Transcriber) processBuffer(buffer []float32, transcriptionChan chan<- string) error {
 	if len(buffer) == 0 {
+		if t.cfg.Verbose {
+			t.logger.Printf("processBuffer called with empty buffer")
+		}
 		return nil
+	}
+
+	if t.cfg.Verbose {
+		t.logger.Printf("processBuffer called with %d samples", len(buffer))
 	}
 
 	// Create a copy of the buffer to avoid race conditions
 	bufferCopy := make([]float32, len(buffer))
 	copy(bufferCopy, buffer)
 
+	if t.cfg.Verbose {
+		t.logger.Printf("Starting whisper transcription...")
+	}
+
 	// Use whisper to transcribe the audio
 	text, err := t.whisper.Transcribe(bufferCopy)
 	if err != nil {
+		if t.cfg.Verbose {
+			t.logger.Printf("Whisper transcription failed: %v", err)
+		}
 		return fmt.Errorf("transcription failed: %w", err)
+	}
+
+	if t.cfg.Verbose {
+		t.logger.Printf("Whisper transcription completed, raw text: '%s'", text)
+	}
+
+	// Log detected language if auto-detection is enabled
+	if t.cfg.Whisper.AutoDetectLanguage && t.whisper.IsMultilingual() {
+		detectedLang := t.whisper.GetDetectedLanguage()
+		if t.cfg.Verbose && detectedLang != "" {
+			t.logger.Printf("Detected language: %s", detectedLang)
+		}
 	}
 
 	// Filter out special tokens
 	filteredText := text
+	if t.cfg.Verbose {
+		t.logger.Printf("Before filtering: '%s'", text)
+	}
+	
 	for _, token := range tokensToFilter {
 		filteredText = strings.ReplaceAll(filteredText, token, "")
 	}
 
 	filteredText = strings.TrimSpace(filteredText)
 
+	if t.cfg.Verbose {
+		t.logger.Printf("After filtering and trimming: '%s'", filteredText)
+	}
+
 	if filteredText != "" {
+		if t.cfg.Verbose {
+			t.logger.Printf("Sending transcription to channel: '%s'", filteredText)
+		}
 		// Use a timeout to prevent blocking indefinitely
 		select {
 		case transcriptionChan <- filteredText:
+			if t.cfg.Verbose {
+				t.logger.Printf("Successfully sent transcription to channel")
+			}
 		case <-time.After(time.Duration(t.cfg.Audio.SilenceDuration) * time.Second):
 			t.logger.Printf("Warning: transcription channel full, dropping text")
+		}
+	} else {
+		if t.cfg.Verbose {
+			t.logger.Printf("No text to transcribe after filtering (empty or filtered out)")
 		}
 	}
 
@@ -269,14 +359,29 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
+	// Track if we need to start a new line
+	firstTranscription := true
+
 	for {
 		select {
 		case <-ctx.Done():
+			// Print newline when done to move to next line
+			if !firstTranscription && t.cfg.Debug.PrintTranscriptions {
+				fmt.Println()
+			}
 			return
 		case text := <-transcriptionChan:
 			if text != "" {
 				if t.cfg.Debug.PrintTranscriptions {
-					t.logger.Printf("Transcription: %s", text)
+					if firstTranscription {
+						// Start the transcription line without timestamp
+						fmt.Print(" ")
+						firstTranscription = false
+					}
+					// Append text to the same line with a space separator
+					fmt.Printf("%s ", text)
+					// Flush output to ensure it appears immediately
+					os.Stdout.Sync()
 				}
 
 				// Wait for the next tick to avoid overwhelming the clipboard
@@ -301,14 +406,99 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 						t.logger.Printf("Failed to paste from clipboard: %v", err)
 					} else {
 						// Play completion tone after successful clipboard operation
-						if err := t.recorder.PlayCompletionTone(); err != nil {
-							t.logger.Printf("Warning: failed to play completion tone: %v", err)
+						// Check if recorder is still available (may be nil if Stop() was called)
+						t.mu.Lock()
+						recorder := t.recorder
+						t.mu.Unlock()
+						
+						if recorder != nil {
+							if err := recorder.PlayCompletionTone(); err != nil {
+								t.logger.Printf("Warning: failed to play completion tone: %v", err)
+							}
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+// waitForNewSpeechInContinuousMode waits for new speech after silence in continuous mode
+func (t *Transcriber) waitForNewSpeechInContinuousMode(ctx context.Context, audioChan <-chan []float32, transcriptionChan chan<- string) error {
+	// Reset processor state to start fresh for new speech
+	t.mu.Lock()
+	t.processor.ClearBuffer()
+	t.mu.Unlock()
+	
+	if t.cfg.Verbose {
+		t.logger.Printf("Waiting for new speech in continuous mode...")
+	}
+	
+	// Wait for non-silent audio that indicates new speech
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case samples := <-audioChan:
+			// Calculate audio level for debugging
+			var sum float32
+			for _, sample := range samples {
+				sum += sample * sample
+			}
+			rms := math.Sqrt(float64(sum / float32(len(samples))))
+			
+			// Debug: Always log audio levels in verbose mode when waiting
+			if t.cfg.Verbose {
+				t.logger.Printf("Waiting for speech - Audio RMS: %.6f (threshold: %.6f)", 
+					rms, t.cfg.Audio.SilenceThreshold)
+			}
+			
+			// Check if this audio contains speech (non-silent)
+			if t.isNonSilentAudio(samples) {
+				if t.cfg.Verbose {
+					t.logger.Printf("New speech detected (RMS: %.6f > %.6f), resuming processing", 
+						rms, t.cfg.Audio.SilenceThreshold)
+				}
+				
+				// Process this first non-silent sample
+				t.mu.Lock()
+				if err := t.processor.ProcessSamples(samples); err != nil {
+					t.mu.Unlock()
+					if err == audio.ErrSilenceDetected {
+						// This shouldn't happen since we just detected non-silent audio,
+						// but if it does, continue waiting
+						if t.cfg.Verbose {
+							t.logger.Printf("Unexpected silence detection on non-silent audio, continuing to wait")
+						}
+						continue
+					}
+					return fmt.Errorf("error processing new speech: %w", err)
+				}
+				t.mu.Unlock()
+				
+				// Successfully started processing new speech, return to main loop
+				return nil
+			}
+			// Sample is still silent, continue waiting
+		}
+	}
+}
+
+// isNonSilentAudio checks if audio samples contain non-silent content
+func (t *Transcriber) isNonSilentAudio(samples []float32) bool {
+	if len(samples) == 0 {
+		return false
+	}
+	
+	// Calculate RMS (same logic as processor uses)
+	var sum float32
+	for _, sample := range samples {
+		sum += sample * sample
+	}
+	rms := math.Sqrt(float64(sum / float32(len(samples))))
+	
+	// Use same threshold as configured for silence detection
+	return rms > float64(t.cfg.Audio.SilenceThreshold)
 }
 
 // isValidText checks if the text is safe to copy to clipboard using config settings

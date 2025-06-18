@@ -21,13 +21,15 @@ func TestEnsureSocketPathIsSafe(t *testing.T) {
 	// Create a test config
 	cfg := &config.Config{
 		Server: struct {
-			SocketPath      string  `json:"socket_path"`
-			SocketTimeout   float32 `json:"socket_timeout"`
-			KeyboardEnabled bool    `json:"keyboard_enabled"`
+			SocketPath      string            `json:"socket_path"`
+			SocketTimeout   float32           `json:"socket_timeout"`
+			KeyboardEnabled bool              `json:"keyboard_enabled"`
+			Hotkeys         map[string]string `json:"hotkeys"`
 		}{
 			SocketPath:      filepath.Join(tempDir, "test.sock"),
 			SocketTimeout:   5.0,
 			KeyboardEnabled: false,
+			Hotkeys:         map[string]string{},
 		},
 	}
 
@@ -113,13 +115,21 @@ func TestKeyActions(t *testing.T) {
 	// Create a test config
 	cfg := &config.Config{
 		Server: struct {
-			SocketPath      string  `json:"socket_path"`
-			SocketTimeout   float32 `json:"socket_timeout"`
-			KeyboardEnabled bool    `json:"keyboard_enabled"`
+			SocketPath      string            `json:"socket_path"`
+			SocketTimeout   float32           `json:"socket_timeout"`
+			KeyboardEnabled bool              `json:"keyboard_enabled"`
+			Hotkeys         map[string]string `json:"hotkeys"`
 		}{
 			SocketPath:      "/tmp/test.sock",
 			SocketTimeout:   5.0,
 			KeyboardEnabled: true,
+			Hotkeys: map[string]string{
+				"r": "start",
+				"s": "stop",
+				"i": "status",
+				"q": "quit",
+				"?": "help",
+			},
 		},
 	}
 

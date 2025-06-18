@@ -66,16 +66,19 @@ type Config struct {
 		} `json:"text_validation"`
 	} `json:"processing"`
 	Whisper struct {
-		Model    string                      `json:"model"`
-		Language string                      `json:"language"`
-		BeamSize int                         `json:"beam_size"`
-		Silent   bool                        `json:"silent"`
-		Models   map[string]WhisperModelInfo `json:"models"`
+		Model              string                      `json:"model"`
+		Language           string                      `json:"language"`
+		AutoDetectLanguage bool                        `json:"auto_detect_language"`
+		SupportedLanguages []string                    `json:"supported_languages,omitempty"`
+		BeamSize           int                         `json:"beam_size"`
+		Silent             bool                        `json:"silent"`
+		Models             map[string]WhisperModelInfo `json:"models"`
 	} `json:"whisper"`
 	Server struct {
-		SocketPath      string  `json:"socket_path"`
-		SocketTimeout   float32 `json:"socket_timeout"`
-		KeyboardEnabled bool    `json:"keyboard_enabled"`
+		SocketPath      string             `json:"socket_path"`
+		SocketTimeout   float32            `json:"socket_timeout"`
+		KeyboardEnabled bool               `json:"keyboard_enabled"`
+		Hotkeys         map[string]string  `json:"hotkeys"`
 	} `json:"server"`
 	Debug struct {
 		PrintStatus         bool `json:"print_status"`
@@ -204,16 +207,20 @@ func DefaultConfig() *Config {
 			},
 		},
 		Whisper: struct {
-			Model    string                      `json:"model"`
-			Language string                      `json:"language"`
-			BeamSize int                         `json:"beam_size"`
-			Silent   bool                        `json:"silent"`
-			Models   map[string]WhisperModelInfo `json:"models"`
+			Model              string                      `json:"model"`
+			Language           string                      `json:"language"`
+			AutoDetectLanguage bool                        `json:"auto_detect_language"`
+			SupportedLanguages []string                    `json:"supported_languages,omitempty"`
+			BeamSize           int                         `json:"beam_size"`
+			Silent             bool                        `json:"silent"`
+			Models             map[string]WhisperModelInfo `json:"models"`
 		}{
-			Model:    "large-v3-turbo-q8_0",
-			Language: "en",
-			BeamSize: 5,
-			Silent:   false,
+			Model:              "large-v3-turbo-q8_0",
+			Language:           "en",
+			AutoDetectLanguage: false,
+			SupportedLanguages: []string{"en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"},
+			BeamSize:           5,
+			Silent:             false,
 			Models: map[string]WhisperModelInfo{
 				"tiny.en": {
 					URL:  "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
@@ -226,13 +233,22 @@ func DefaultConfig() *Config {
 			},
 		},
 		Server: struct {
-			SocketPath      string  `json:"socket_path"`
-			SocketTimeout   float32 `json:"socket_timeout"`
-			KeyboardEnabled bool    `json:"keyboard_enabled"`
+			SocketPath      string             `json:"socket_path"`
+			SocketTimeout   float32            `json:"socket_timeout"`
+			KeyboardEnabled bool               `json:"keyboard_enabled"`
+			Hotkeys         map[string]string  `json:"hotkeys"`
 		}{
 			SocketPath:      "/tmp/skald.sock",
 			SocketTimeout:   5.0,
 			KeyboardEnabled: true,
+			Hotkeys: map[string]string{
+				"r": "start",
+				"s": "stop", 
+				"i": "status",
+				"q": "quit",
+				"?": "help",
+				"c": "resume",
+			},
 		},
 		Debug: struct {
 			PrintStatus         bool `json:"print_status"`

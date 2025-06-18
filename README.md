@@ -16,6 +16,8 @@ Skald-Go is a lightweight speech-to-text tool that converts your voice to text i
 - ⌨️ Auto-paste support (configurable)
 - 🔄 **Continuous recording mode** - Keep recording until manually stopped
 - 🎵 **Audio feedback** - Customizable tones for start, completion, and error states
+- 🌍 **Multi-language support** - Auto-detect language or use specific language settings
+- ⌨️ **Configurable hotkeys** - Customize keyboard shortcuts for all actions
 - 🛑 Silence detection for automatic stopping
 - 🔒 **Security-focused text validation** - Allows natural punctuation while blocking command injection
 - 💪 Multiple whisper models supported
@@ -335,13 +337,56 @@ Example configuration:
 
 ## Keyboard Interactions
 
-When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
+### Default Hotkeys
+When running the server with `keyboard_enabled: true` in the config, you can use keyboard shortcuts to control transcription:
 
 - `r` - Start transcription (same as running `./scripts/run-client.sh start`)
 - `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
 - `i` - Show transcriber status
 - `q` - Quit the application
 - `?` - Show available commands
+- `c` - Resume continuous recording (placeholder for future implementation)
+
+### Transcription Output
+In continuous mode, transcribed text appears on a single line as you speak:
+```
+Transcription started - listening for speech...
+ Hello world. This is a test. Everything appears on one line.
+Transcription stopped
+```
+
+This clean output format makes it easy to see your complete transcription at a glance.
+
+### Configurable Hotkeys
+You can customize hotkeys by modifying the `hotkeys` section in your config.json:
+
+```json
+{
+  "server": {
+    "keyboard_enabled": true,
+    "hotkeys": {
+      "1": "start",     // Use '1' to start recording
+      "2": "stop",      // Use '2' to stop recording  
+      "3": "status",    // Use '3' to check status
+      "0": "quit",      // Use '0' to quit
+      "h": "help"       // Use 'h' for help
+    }
+  }
+}
+```
+
+**Available Actions:**
+- `start` - Begin recording and transcription
+- `stop` - Stop recording and transcription
+- `status` - Display current transcriber status
+- `quit` - Exit the application gracefully
+- `help` - Show available hotkeys and commands
+
+**Hotkey Requirements:**
+- Keys must be single characters (letters, numbers, symbols)
+- Each key can only be mapped to one action
+- Actions must be from the supported list above
+- Invalid hotkeys are ignored with warnings in verbose mode
 
 This allows you to control the transcription directly from the terminal running the server without needing to use the client.
 
@@ -384,14 +429,46 @@ Recording will continue through silence periods and only stop when:
 - Better for dictation and long-form content
 - Automatic audio feedback when transcription segments complete
 
+## Language Support
+
+### Automatic Language Detection
+Enable language auto-detection by setting:
+```json
+{
+  "whisper": {
+    "auto_detect_language": true,
+    "language": "auto"
+  }
+}
+```
+
+**Requirements for auto-detection:**
+- Must use a multilingual model (NOT English-only models like `tiny.en`)
+- Recommended models: `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`
+
+### Supported Languages
+Skald-Go supports 99+ languages through whisper.cpp including:
+- **Western European**: English (en), Spanish (es), French (fr), German (de), Italian (it), Portuguese (pt), Dutch (nl)
+- **Eastern European**: Russian (ru), Polish (pl), Ukrainian (uk), Czech (cs), Romanian (ro), Hungarian (hu) 
+- **Asian**: Japanese (ja), Korean (ko), Chinese (zh), Thai (th), Vietnamese (vi), Hindi (hi)
+- **Middle Eastern**: Arabic (ar), Hebrew (he), Persian (fa), Turkish (tr), Urdu (ur)
+- **Many others**: See full list in whisper.cpp documentation
+
+### Language Configuration
+- `language`: Set specific language code (e.g., "en", "es", "fr") or "auto" for detection
+- `auto_detect_language`: Enable/disable automatic language detection
+- `supported_languages`: List of languages to expect (helps with validation)
+
 ## Model Selection
-| Model | Size | Use Case | Speed | Memory Usage |
-|-------|------|----------|-------|--------------|
-| tiny.en | 77.7MB | Quick tests, low resource environments | ⚡⚡⚡⚡⚡ | 🟢 Low |
-| base | ~150MB | Basic transcription | ⚡⚡⚡⚡ | 🟢 Low |
-| small | ~500MB | Balanced performance | ⚡⚡⚡ | 🟡 Medium |
-| medium | ~1.5GB | Better accuracy | ⚡⚡ | 🟠 High |
-| large-v3 | ~3GB | Best accuracy | ⚡ | 🔴 Very High |
+| Model | Size | Use Case | Speed | Memory Usage | Languages |
+|-------|------|----------|-------|--------------|-----------|
+| tiny.en | 77.7MB | English only, low resource | ⚡⚡⚡⚡⚡ | 🟢 Low | 🇺🇸 English only |
+| base | ~150MB | Basic transcription | ⚡⚡⚡⚡ | 🟢 Low | 🌍 Multilingual |
+| small | ~500MB | Balanced performance | ⚡⚡⚡ | 🟡 Medium | 🌍 Multilingual |
+| medium | ~1.5GB | Better accuracy | ⚡⚡ | 🟠 High | 🌍 Multilingual |
+| large-v3 | ~3GB | Best accuracy | ⚡ | 🔴 Very High | 🌍 Multilingual |
+
+**Note**: English-only models (*.en) are faster but only support English. Multilingual models support auto-detection and 99+ languages.
 
 ## Troubleshooting
 

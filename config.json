@@ -14,14 +14,14 @@
         "start_tone": {
             "enabled": true,
             "frequency": 440,
-            "duration": 150,
-            "fade_ms": 5
+            "duration": 100,
+            "fade_ms": 15
         },
         "completion_tone": {
             "enabled": true,
-            "frequency": 660,
-            "duration": 200,
-            "fade_ms": 10
+            "frequency": 260,
+            "duration": 150,
+            "fade_ms": 15
         },
         "error_tone": {
             "enabled": true,
@@ -50,6 +50,8 @@
     "whisper": {
         "model": "large-v3-turbo-q8_0",
         "language": "en",
+        "auto_detect_language": false,
+        "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"],
         "beam_size": 5,
         "silent": true,
         "models": {
@@ -61,29 +63,32 @@
             "base": {
                 "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
                 "size": "146MB",
-                "sha256": "60ed2bc3471d00325bb039d9342b98968076b4fc5cb91b48584c4ad46cf6c891"
-            },
-            "small": {
-                "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-                "size": "466MB",
-                "sha256": "e86227b4586bbef559f60bdc47a89c2dcff6bf37cc9ccdb32b62b81cf666cd83"
+                "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"
             },
             "large-v3-turbo-q8_0": {
                 "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin",
                 "size": "874MB",
-                "sha256": "4f816677994e00a50a8c5871cd80d45c87fa5ead5c3c5a8dc3b6ee04f4ba1d59"
+                "sha256": "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
             },
             "tiny.en": {
                 "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
                 "size": "77.7MB",
-                "sha256": "c78c86eb1a8faa21b369bcd33207cc90d64ae9df6470ea0125254acd2e018db0"
+                "sha256": "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
             }
         }
     },
     "server": {
         "socket_path": "/tmp/skald.sock",
         "socket_timeout": 5,
-        "keyboard_enabled": true
+        "keyboard_enabled": true,
+        "hotkeys": {
+            "r": "start",
+            "s": "stop",
+            "i": "status",
+            "q": "quit",
+            "?": "help",
+            "c": "resume"
+        }
     },
     "debug": {
         "print_status": true,

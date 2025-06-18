@@ -77,86 +77,119 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 	return s, nil
 }
 
-// setupKeyActions configures the available keyboard actions
+// setupKeyActions configures the available keyboard actions from configuration
 func (s *Server) setupKeyActions() {
-	s.keyActions = []KeyAction{
-		{
-			Key:    'r',
-			Action: "start",
-			Desc:   "Start transcription",
-			Handler: func() error {
-				return s.transcriber.Start()
-			},
+	s.keyActions = []KeyAction{}
+	
+	// Create available action handlers
+	actionHandlers := map[string]func() error{
+		"start": func() error {
+			err := s.transcriber.Start()
+			if err == nil {
+				fmt.Println("\nTranscription started - listening for speech...")
+			}
+			return err
 		},
-		{
-			Key:    's',
-			Action: "stop",
-			Desc:   "Stop transcription",
-			Handler: func() error {
-				return s.transcriber.Stop()
-			},
+		"stop": func() error {
+			err := s.transcriber.Stop()
+			if err == nil {
+				fmt.Println("\nTranscription stopped")
+			}
+			return err
 		},
-		{
-			Key:    'i',
-			Action: "status",
-			Desc:   "Show transcriber status",
-			Handler: func() error {
-				isRunning := s.transcriber.IsRunning()
-				status := "stopped"
-				if isRunning {
-					status = "running"
-				}
-				fmt.Printf("\nTranscriber status: %s\n\n", status)
-				return nil
-			},
+		"status": func() error {
+			isRunning := s.transcriber.IsRunning()
+			status := "stopped"
+			if isRunning {
+				status = "running"
+			}
+			fmt.Printf("\nTranscriber status: %s\n\n", status)
+			return nil
 		},
-		{
-			Key:    'q',
-			Action: "quit",
-			Desc:   "Quit the application",
-			Handler: func() error {
-				s.logger.Printf("Quit requested via keyboard")
+		"quit": func() error {
+			s.logger.Printf("Quit requested via keyboard")
 
-				// Cancel the context to signal shutdown first
-				if s.cancel != nil {
-					s.cancel()
-				}
+			// Cancel the context to signal shutdown first
+			if s.cancel != nil {
+				s.cancel()
+			}
 
-				// Stop the server
-				if err := s.Stop(); err != nil {
-					s.logger.Printf("Error stopping server: %v", err)
-				}
+			// Stop the server
+			if err := s.Stop(); err != nil {
+				s.logger.Printf("Error stopping server: %v", err)
+			}
 
-				// Exit the application
-				s.logger.Printf("Exiting application...")
-				go func() {
-					// Give a short delay to allow logs to be written
-					time.Sleep(100 * time.Millisecond)
-					os.Exit(0)
-				}()
-				return nil
-			},
+			// Exit the application
+			s.logger.Printf("Exiting application...")
+			go func() {
+				// Give a short delay to allow logs to be written
+				time.Sleep(100 * time.Millisecond)
+				os.Exit(0)
+			}()
+			return nil
 		},
-		{
-			Key:    '?',
-			Action: "help",
-			Desc:   "Show available commands",
-			Handler: func() error {
-				fmt.Println("\nAvailable commands:")
-				fmt.Println("  r - Start transcription")
-				fmt.Println("  s - Stop transcription")
-				fmt.Println("  i - Show transcriber status")
-				fmt.Println("  q - Quit the application")
-				fmt.Println("  ? - Show this help")
-				return nil
-			},
+		"help": func() error {
+			return s.printKeyboardHelp()
 		},
+		"resume": func() error {
+			// Force resume recording in continuous mode
+			s.logger.Printf("Manual resume requested")
+			// This is a placeholder - actual implementation would need transcriber access
+			fmt.Println("\nManual resume triggered (not yet implemented)")
+			return nil
+		},
+	}
+	
+	// Action descriptions
+	actionDescs := map[string]string{
+		"start":  "Start transcription",
+		"stop":   "Stop transcription", 
+		"status": "Show transcriber status",
+		"quit":   "Quit the application",
+		"help":   "Show available commands",
+		"resume": "Resume continuous recording",
+	}
+	
+	// Build key actions from configuration
+	for keyStr, action := range s.cfg.Server.Hotkeys {
+		if len(keyStr) != 1 {
+			s.logger.Printf("Warning: Invalid hotkey '%s' - must be single character", keyStr)
+			continue
+		}
+		
+		key := rune(keyStr[0])
+		handler, exists := actionHandlers[action]
+		if !exists {
+			s.logger.Printf("Warning: Unknown action '%s' for hotkey '%s'", action, keyStr)
+			continue
+		}
+		
+		desc, hasDesc := actionDescs[action]
+		if !hasDesc {
+			desc = action
+		}
+		
+		s.keyActions = append(s.keyActions, KeyAction{
+			Key:     key,
+			Action:  action,
+			Desc:    desc,
+			Handler: handler,
+		})
+	}
+	
+	if s.cfg.Verbose {
+		s.logger.Printf("Configured %d hotkeys from settings", len(s.keyActions))
 	}
 }
 
 // printKeyboardHelp displays available keyboard commands
-func (s *Server) printKeyboardHelp() {
-	fmt.Println("\nCommands: r=record, s=stop, i=status, q=quit, ?=help")
+func (s *Server) printKeyboardHelp() error {
+	fmt.Println("\nAvailable commands:")
+	for _, action := range s.keyActions {
+		fmt.Printf("  %c - %s\n", action.Key, action.Desc)
+	}
+	fmt.Println()
+	return nil
 }
 
 // Start begins listening for connections
