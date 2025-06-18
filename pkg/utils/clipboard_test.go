@@ -39,7 +39,7 @@ func TestClipboardManager(t *testing.T) {
 	// Note: We can't actually test clipboard operations in a unit test
 	// without affecting the system clipboard, so we'll just check that
 	// the validation passes
-	if !cm.isValidText("This is valid text") {
+	if !cm.IsValidText("This is valid text") {
 		t.Error("Expected 'This is valid text' to be valid")
 	}
 	
@@ -64,11 +64,11 @@ func TestTextValidation(t *testing.T) {
 		{"Text with pipe|", false},
 		{"Text with both; characters|", false},
 		{"Normal text 123", true},
-		{"Text with newlines\nand spaces", true},
+		{"Text with newlines\nand spaces", false}, // newlines are dangerous
 	}
 	
 	for _, tc := range testCases {
-		result := cm.isValidText(tc.text)
+		result := cm.IsValidText(tc.text)
 		if result != tc.valid {
 			t.Errorf("For text '%s', expected valid=%v, got %v", tc.text, tc.valid, result)
 		}

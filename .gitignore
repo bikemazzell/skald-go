@@ -32,8 +32,8 @@ lib/
 
 # Scaffolding
 .claude
-
+Claude.md
 
 # Binaries
-#service
-#client
+service
+client

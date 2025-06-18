@@ -9,8 +9,9 @@ import (
 
 // WhisperModelInfo contains model metadata
 type WhisperModelInfo struct {
-	URL  string `json:"url"`
-	Size string `json:"size"`
+	URL      string `json:"url"`
+	Size     string `json:"size"`
+	SHA256   string `json:"sha256,omitempty"`
 }
 
 // Config represents the application configuration
@@ -205,8 +206,8 @@ func Save(path string, cfg *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Write file
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	// Write file with restrictive permissions (readable by owner and group only)
+	if err := os.WriteFile(path, data, 0640); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

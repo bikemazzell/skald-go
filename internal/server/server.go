@@ -147,7 +147,7 @@ func (s *Server) setupKeyActions() {
 				fmt.Println("  s - Stop transcription")
 				fmt.Println("  i - Show transcriber status")
 				fmt.Println("  q - Quit the application")
-				fmt.Println("  ? - Show this help\n")
+				fmt.Println("  ? - Show this help")
 				return nil
 			},
 		},
@@ -187,6 +187,13 @@ func (s *Server) Start() error {
 	if err != nil {
 		s.mu.Unlock()
 		return fmt.Errorf("failed to create socket: %w", err)
+	}
+
+	// Set restrictive permissions on the socket (owner read/write only)
+	if err := os.Chmod(s.cfg.Server.SocketPath, 0600); err != nil {
+		listener.Close()
+		s.mu.Unlock()
+		return fmt.Errorf("failed to set socket permissions: %w", err)
 	}
 
 	s.listener = listener

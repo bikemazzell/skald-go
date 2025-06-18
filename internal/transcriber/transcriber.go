@@ -290,20 +290,9 @@ func (t *Transcriber) handleTranscriptions(ctx context.Context, transcriptionCha
 
 // isValidText checks if the text is safe to copy to clipboard
 func isValidText(text string) bool {
-	// Check if text is empty
-	if text == "" {
-		return false
-	}
-
-	// Check for potentially dangerous characters that could be used for command injection
-	dangerousChars := []string{";", "&", "|"}
-	for _, char := range dangerousChars {
-		if strings.Contains(text, char) {
-			return false
-		}
-	}
-
-	return true
+	// Use the clipboard manager's validation logic
+	cm := utils.NewClipboardManager(false)
+	return cm.IsValidText(text)
 }
 
 // Close cleans up resources
