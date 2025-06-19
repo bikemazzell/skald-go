@@ -31,8 +31,8 @@ deps/
 lib/
 
 # Scaffolding
-.claude
-Claude.md
+#.claude
+#Claude.md
 
 # Binaries
 service

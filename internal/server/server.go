@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"skald/internal/config"
@@ -18,13 +19,15 @@ import (
 )
 
 type Command struct {
-	Action string `json:"action"`
+	Action  string            `json:"action"`
+	Options map[string]string `json:"options,omitempty"`
 }
 
 type Response struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Status  string                 `json:"status"`
+	Message string                 `json:"message,omitempty"`
+	Error   string                 `json:"error,omitempty"`
+	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
 type KeyAction struct {
@@ -48,8 +51,137 @@ type Server struct {
 
 	keyActions     []KeyAction
 	keyboardActive bool
+	
+	statsMu sync.RWMutex
+	stats   ServerStats
 	keyboardCtx    context.Context
 	keyboardCancel context.CancelFunc
+}
+
+type ServerStats struct {
+	StartTime            time.Time
+	LastTranscriptionTime time.Time
+	TranscriptionCount   int
+	ErrorCount           int
+	LastError            string
+	LastErrorTime        time.Time
+	CurrentState         string
+	SessionDuration      time.Duration
+	RecentLogs           []LogEntry
+}
+
+type LogEntry struct {
+	Timestamp time.Time
+	Level     string
+	Message   string
+}
+
+func (s *Server) logActivity(level, message string) {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	
+	entry := LogEntry{
+		Timestamp: time.Now(),
+		Level:     level,
+		Message:   message,
+	}
+	
+	s.stats.RecentLogs = append(s.stats.RecentLogs, entry)
+	if len(s.stats.RecentLogs) > 100 {
+		s.stats.RecentLogs = s.stats.RecentLogs[1:]
+	}
+}
+
+func (s *Server) updateErrorStats(err error) {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	
+	s.stats.ErrorCount++
+	s.stats.LastError = err.Error()
+	s.stats.LastErrorTime = time.Now()
+	
+	entry := LogEntry{
+		Timestamp: time.Now(),
+		Level:     "ERROR",
+		Message:   err.Error(),
+	}
+	
+	s.stats.RecentLogs = append(s.stats.RecentLogs, entry)
+	if len(s.stats.RecentLogs) > 100 {
+		s.stats.RecentLogs = s.stats.RecentLogs[1:]
+	}
+}
+
+func (s *Server) updateStateStats(state string) {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	
+	s.stats.CurrentState = state
+	if state == "transcribing" {
+		s.stats.TranscriptionCount++
+		s.stats.LastTranscriptionTime = time.Now()
+	}
+}
+
+func (s *Server) buildStatusResponse(isRunning bool, verbose bool) Response {
+	s.statsMu.RLock()
+	defer s.statsMu.RUnlock()
+	
+	status := "stopped"
+	if isRunning {
+		status = "running"
+	}
+	
+	resp := Response{
+		Status:  "success",
+		Message: fmt.Sprintf("Transcriber is %s", status),
+	}
+	
+	if verbose {
+		resp.Data = map[string]interface{}{
+			"state":                s.stats.CurrentState,
+			"uptime":               time.Since(s.stats.StartTime).String(),
+			"transcription_count":  s.stats.TranscriptionCount,
+			"error_count":          s.stats.ErrorCount,
+			"last_transcription":   s.formatTime(s.stats.LastTranscriptionTime),
+			"last_error":           s.stats.LastError,
+			"last_error_time":      s.formatTime(s.stats.LastErrorTime),
+			"continuous_mode":      s.cfg.Processing.ContinuousMode.Enabled,
+			"model":                s.cfg.Whisper.Model,
+			"language":             s.cfg.Whisper.Language,
+		}
+	}
+	
+	return resp
+}
+
+func (s *Server) buildLogsResponse() Response {
+	s.statsMu.RLock()
+	defer s.statsMu.RUnlock()
+	
+	logs := make([]map[string]string, len(s.stats.RecentLogs))
+	for i, log := range s.stats.RecentLogs {
+		logs[i] = map[string]string{
+			"timestamp": log.Timestamp.Format("2006-01-02 15:04:05"),
+			"level":     log.Level,
+			"message":   log.Message,
+		}
+	}
+	
+	return Response{
+		Status:  "success",
+		Message: fmt.Sprintf("Retrieved %d log entries", len(logs)),
+		Data: map[string]interface{}{
+			"logs": logs,
+		},
+	}
+}
+
+func (s *Server) formatTime(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	return t.Format("2006-01-02 15:04:05")
 }
 
 func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Server, error) {
@@ -63,6 +195,11 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 		transcriber: t,
 		logger:      logger,
 		modelMgr:    modelMgr,
+		stats: ServerStats{
+			StartTime:    time.Now(),
+			CurrentState: "initialized",
+			RecentLogs:   make([]LogEntry, 0, 100),
+		},
 	}
 
 	s.setupKeyActions()
@@ -99,20 +236,15 @@ func (s *Server) setupKeyActions() {
 		},
 		"quit": func() error {
 			s.logger.Printf("Quit requested via keyboard")
-
-			if s.cancel != nil {
-				s.cancel()
-			}
-
-			if err := s.Stop(); err != nil {
-				s.logger.Printf("Error stopping server: %v", err)
-			}
-
-			s.logger.Printf("Exiting application...")
+			
+			// Send interrupt signal to trigger graceful shutdown
 			go func() {
-				time.Sleep(100 * time.Millisecond)
-				os.Exit(0)
+				time.Sleep(10 * time.Millisecond) // Small delay to ensure log is printed
+				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+					s.logger.Printf("Error sending interrupt signal: %v", err)
+				}
 			}()
+
 			return nil
 		},
 		"help": func() error {
@@ -219,7 +351,14 @@ func (s *Server) Start() error {
 	}
 
 	for {
-		if err := s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(1 * time.Second)); err != nil {
+		// Check if context is cancelled before accepting new connections
+		select {
+		case <-s.ctx.Done():
+			return nil
+		default:
+		}
+
+		if err := s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
 			s.logger.Printf("Failed to set deadline: %v", err)
 		}
 
@@ -298,16 +437,24 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 	s.logger.Printf("Received command: %s", cmd.Action)
+	s.logActivity("INFO", fmt.Sprintf("Command received: %s", cmd.Action))
 
 	var resp Response
 	switch cmd.Action {
 	case "start":
+		continuous := cmd.Options["continuous"] == "true"
+		if continuous {
+			s.cfg.Processing.ContinuousMode.Enabled = true
+		}
 		if err := s.transcriber.Start(); err != nil {
+			s.updateErrorStats(err)
 			resp = Response{
 				Status: "error",
 				Error:  fmt.Sprintf("Failed to start transcriber: %v", err),
 			}
 		} else {
+			s.updateStateStats("running")
+			s.logActivity("INFO", "Transcriber started")
 			resp = Response{
 				Status:  "success",
 				Message: "Transcriber started",
@@ -315,11 +462,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 	case "stop":
 		if err := s.transcriber.Stop(); err != nil {
+			s.updateErrorStats(err)
 			resp = Response{
 				Status: "error",
 				Error:  fmt.Sprintf("Failed to stop transcriber: %v", err),
 			}
 		} else {
+			s.updateStateStats("stopped")
+			s.logActivity("INFO", "Transcriber stopped")
 			resp = Response{
 				Status:  "success",
 				Message: "Transcriber stopped",
@@ -327,11 +477,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 	case "status":
 		isRunning := s.transcriber.IsRunning()
-		resp = Response{
-			Status:  "success",
-			Message: fmt.Sprintf("Transcriber is %s", map[bool]string{true: "running", false: "stopped"}[isRunning]),
-		}
+		verbose := cmd.Options["verbose"] == "true"
+		resp = s.buildStatusResponse(isRunning, verbose)
+	case "logs":
+		resp = s.buildLogsResponse()
 	default:
+		s.updateErrorStats(fmt.Errorf("invalid command: %s", cmd.Action))
 		resp = Response{
 			Status: "error",
 			Error:  "Invalid command",
@@ -349,19 +500,29 @@ func (s *Server) handleConnection(conn net.Conn) {
 func (s *Server) Stop() error {
 	s.logger.Printf("Stopping server...")
 
+	// Cancel main context to stop all goroutines
+	if s.cancel != nil {
+		s.cancel()
+	}
+
+	// Stop keyboard listener
 	if s.keyboardActive && s.keyboardCancel != nil {
 		s.keyboardCancel()
 	}
 
+	// Close transcriber
 	if s.transcriber != nil {
 		if err := s.transcriber.Close(); err != nil {
 			s.logger.Printf("Error closing transcriber: %v", err)
 		}
 	}
 
+	// Close listener (ignore "use of closed network connection" errors)
 	if s.listener != nil {
 		if err := s.listener.Close(); err != nil {
-			return fmt.Errorf("failed to close listener: %w", err)
+			if !strings.Contains(err.Error(), "use of closed network connection") {
+				return fmt.Errorf("failed to close listener: %w", err)
+			}
 		}
 	}
 

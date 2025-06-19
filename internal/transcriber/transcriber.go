@@ -510,31 +510,29 @@ func (t *Transcriber) isValidText(text string) bool {
 
 // Close cleans up resources
 func (t *Transcriber) Close() error {
+	var errs []error
+
+	// Stop if running (Stop handles its own locking)
+	// Use a timeout to prevent hanging
+	done := make(chan error, 1)
+	go func() {
+		done <- t.Stop()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			errs = append(errs, fmt.Errorf("stop error: %w", err))
+		}
+	case <-time.After(5 * time.Second):
+		t.logger.Printf("Warning: Stop() timed out, continuing with cleanup...")
+		errs = append(errs, fmt.Errorf("stop timeout"))
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	var errs []error
-
-	// Cancel context if running
-	if t.cancel != nil {
-		t.cancel()
-		t.cancel = nil
-	}
-
-	// Stop if running
-	if t.isRunning {
-		if err := t.Stop(); err != nil {
-			errs = append(errs, fmt.Errorf("stop error: %w", err))
-		}
-	}
-
-	// Clean up recorder
-	if t.recorder != nil {
-		if err := t.recorder.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("recorder close error: %w", err))
-		}
-		t.recorder = nil
-	}
+	// Recorder cleanup is already done in Stop
 
 	// Clean up whisper
 	if t.whisper != nil {

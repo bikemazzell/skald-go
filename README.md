@@ -65,6 +65,20 @@ In another terminal, control recording
 ./scripts/run-client.sh start # Begin recording
 ./scripts/run-client.sh stop # Stop recording
 ./scripts/run-client.sh status # Check status
+./scripts/run-client.sh status --verbose # Detailed status
+./scripts/run-client.sh logs # View recent activity logs
+./scripts/run-client.sh start --continuous # Start continuous mode
+```
+
+### Hotkey Integration Scripts
+
+For easy integration with system hotkeys:
+
+```bash
+./scripts/quick-transcribe.sh    # One-shot transcription
+./scripts/toggle-continuous.sh   # Toggle continuous mode on/off
+./scripts/show-status.sh         # Show detailed status and logs
+./scripts/emergency-stop.sh      # Force stop all recording
 ```
 ## System Requirements
 
@@ -256,6 +270,10 @@ skald-go/
 │   ├── package.sh        # Create distributable package
 │   ├── run-client.sh     # Run client wrapper
 │   ├── run-server.sh     # Run server wrapper
+│   ├── quick-transcribe.sh # One-shot transcription
+│   ├── toggle-continuous.sh # Toggle continuous mode
+│   ├── show-status.sh    # Show detailed status
+│   ├── emergency-stop.sh # Force stop recording
 │   ├── skald-server.service # Systemd service file
 │   └── update_deps.sh    # Update dependencies
 ├── vendor/               # Vendored dependencies
@@ -343,7 +361,7 @@ When running the server with `keyboard_enabled: true` in the config, you can use
 - `r` - Start transcription (same as running `./scripts/run-client.sh start`)
 - `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
 - `i` - Show transcriber status
-- `q` - Quit the application
+- `q` - Quit the application (fast, graceful shutdown)
 - `?` - Show available commands
 - `c` - Resume continuous recording (placeholder for future implementation)
 
@@ -389,6 +407,37 @@ You can customize hotkeys by modifying the `hotkeys` section in your config.json
 - Invalid hotkeys are ignored with warnings in verbose mode
 
 This allows you to control the transcription directly from the terminal running the server without needing to use the client.
+
+## Enhanced Status Reporting
+
+The client now supports detailed status information and activity logging:
+
+### Verbose Status
+```bash
+./scripts/run-client.sh status --verbose
+```
+
+Shows:
+- Current transcriber state (running/stopped)
+- Server uptime
+- Transcription count
+- Error count and last error
+- Last transcription time
+- Current configuration (model, language, continuous mode)
+
+### Activity Logs
+```bash
+./scripts/run-client.sh logs
+```
+
+Displays recent server activity including:
+- Command executions
+- Transcription events
+- Errors and warnings
+- State changes
+
+This is useful for debugging and monitoring the service's behavior.
+
 
 ## Audio Configuration
 - silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
@@ -577,5 +626,5 @@ When running the server with `keyboard_enabled: true` in the config, you can use
 - `r` - Start transcription (same as running `./scripts/run-client.sh start`)
 - `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
 - `i` - Show transcriber status
-- `q` - Quit the application
+- `q` - Quit the application (fast, graceful shutdown)
 - `?` - Show available commands

@@ -11,13 +11,15 @@ import (
 )
 
 type Command struct {
-	Action string `json:"action"`
+	Action  string            `json:"action"`
+	Options map[string]string `json:"options,omitempty"`
 }
 
 type Response struct {
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Status  string                 `json:"status"`
+	Message string                 `json:"message,omitempty"`
+	Error   string                 `json:"error,omitempty"`
+	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
 func main() {
@@ -27,8 +29,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	var verbose bool
+	var continuous bool
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
+	flag.BoolVar(&continuous, "continuous", false, "Enable continuous mode (for start command)")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [start|stop|status]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [start|stop|status|logs] [flags]\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -40,7 +46,7 @@ func main() {
 
 	action := flag.Arg(0)
 	if !isValidAction(action) {
-		fmt.Fprintf(os.Stderr, "Invalid action. Use 'start', 'stop', or 'status'\n")
+		fmt.Fprintf(os.Stderr, "Invalid action. Use 'start', 'stop', 'status', or 'logs'\n")
 		os.Exit(1)
 	}
 
@@ -53,7 +59,16 @@ func main() {
 	defer conn.Close()
 
 	fmt.Printf("Sending command: %s\n", action)
-	cmd := Command{Action: action}
+	cmd := Command{
+		Action:  action,
+		Options: make(map[string]string),
+	}
+	if verbose {
+		cmd.Options["verbose"] = "true"
+	}
+	if continuous && action == "start" {
+		cmd.Options["continuous"] = "true"
+	}
 	if err := json.NewEncoder(conn).Encode(cmd); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to send command: %v\n", err)
 		os.Exit(1)
@@ -70,9 +85,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", resp.Error)
 		os.Exit(1)
 	}
+	
+	if verbose && resp.Data != nil {
+		fmt.Println("\nDetailed Status:")
+		for key, value := range resp.Data {
+			fmt.Printf("  %s: %v\n", key, value)
+		}
+	}
+	
 	fmt.Printf("Server response: %s\n", resp.Message)
 }
 
 func isValidAction(action string) bool {
-	return action == "start" || action == "stop" || action == "status"
+	return action == "start" || action == "stop" || action == "status" || action == "logs"
 }
