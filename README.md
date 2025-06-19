@@ -139,40 +139,6 @@ make build
 ```
 This will compile both server and client binaries.
 
-## Creating a Release Package
-
-Skald-Go includes a release build system that creates self-contained distribution packages:
-
-```bash
-make release
-```
-
-This will:
-- Build optimized binaries with all dependencies
-- Create a complete release package with libraries
-- Generate a distributable tarball (e.g., `skald-go-0.8.0-linux-x64.tar.gz`)
-- Include launcher scripts, systemd service, and documentation
-
-To install a release package:
-
-1. Extract the release tarball:
-   ```bash
-   tar -xzf skald-go-*-linux-x64.tar.gz
-   cd skald-go-*
-   ```
-
-2. Start the server:
-   ```bash
-   ./skald server
-   ```
-
-3. In another terminal, control transcription:
-   ```bash
-   ./skald start    # Start transcription
-   ./skald stop     # Stop transcription
-   ./skald status   # Check status
-   ```
-
 ## Model Management
 
 Skald-Go includes a script to easily download and manage whisper models:
@@ -403,36 +369,65 @@ You can customize hotkeys by modifying the `hotkeys` section in your config.json
 
 This allows you to control the transcription directly from the terminal running the server without needing to use the client.
 
-## Enhanced Status Reporting
 
-The client now supports detailed status information and activity logging:
+## Running the Server
 
-### Verbose Status
+There are several ways to run the Skald-Go server:
+
+### Using the wrapper script (preferable for dev)
+
+The simplest way to run the server is to use the provided wrapper script:
+
 ```bash
-./scripts/run-client.sh status --verbose
+./scripts/run-server.sh
 ```
 
-Shows:
-- Current transcriber state (running/stopped)
-- Server uptime
-- Transcription count
-- Error count and last error
-- Last transcription time
-- Current configuration (model, language, continuous mode)
+This script automatically sets the correct `LD_LIBRARY_PATH` environment variable to find the required libraries.
 
-### Activity Logs
+### Using the client
+
+To interact with the server, use the provided client wrapper script:
+
 ```bash
-./scripts/run-client.sh logs
+./scripts/run-client.sh start   # Start transcription
+./scripts/run-client.sh stop    # Stop transcription
+./scripts/run-client.sh status  # Check server status, can also add --verbose for extra info
+./scripts/run-client.sh logs  # show server logs
 ```
 
-Displays recent server activity including:
-- Command executions
-- Transcription events
-- Errors and warnings
-- State changes
+### Using systemd (for Linux users)
 
-This is useful for debugging and monitoring the service's behavior.
+For a more permanent solution, you can install Skald-Go system-wide with a single command:
 
+```bash
+make install
+```
+
+This will:
+- Build a release package
+- Install binaries to `~/.local/bin/skald-go/`
+- Add Skald-Go to your PATH
+- Copy the systemd service file
+
+After installation, restart your terminal or run `source ~/.bashrc`, then:
+
+```bash
+# Use the unified launcher
+skald server             # Start the server
+skald start              # Start transcription
+skald stop               # Stop transcription
+
+# Or set up as a systemd service
+systemctl --user daemon-reload
+systemctl --user enable ~/.local/bin/skald-go/skald.service
+systemctl --user start skald.service
+
+# Check the status of the service:
+systemctl --user status skald-server.service
+
+# View logs:
+journalctl --user -u skald-server.service -f
+ ```
 
 ## Audio Configuration
 - silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
@@ -558,68 +553,3 @@ If you find this project helpful, please consider giving it a star ⭐️
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## Running the Server
-
-There are several ways to run the Skald-Go server:
-
-### Using the wrapper script
-
-The simplest way to run the server is to use the provided wrapper script:
-
-```bash
-./scripts/run-server.sh
-```
-
-This script automatically sets the correct `LD_LIBRARY_PATH` environment variable to find the required libraries.
-
-### Using the client
-
-To interact with the server, use the provided client wrapper script:
-
-```bash
-./scripts/run-client.sh start   # Start transcription
-./scripts/run-client.sh stop    # Stop transcription
-./scripts/run-client.sh status  # Check server status
-```
-
-### Using systemd (for Linux users)
-
-For a more permanent solution, you can install the provided systemd service:
-
-1. Copy the service file to your user's systemd directory:
-   ```bash
-   mkdir -p ~/.config/systemd/user/
-   cp scripts/skald-server.service ~/.config/systemd/user/
-   ```
-
-2. Reload systemd to recognize the new service:
-   ```bash
-   systemctl --user daemon-reload
-   ```
-
-3. Enable and start the service:
-   ```bash
-   systemctl --user enable skald-server.service
-   systemctl --user start skald-server.service
-   ```
-
-4. Check the status of the service:
-   ```bash
-   systemctl --user status skald-server.service
-   ```
-
-5. View logs:
-   ```bash
-   journalctl --user -u skald-server.service -f
-   ```
-
-## Keyboard Interactions
-
-When running the server with `keyboard_enabled: true` in the config, you can use the following keyboard shortcuts:
-
-- `r` - Start transcription (same as running `./scripts/run-client.sh start`)
-- `s` - Stop transcription (same as running `./scripts/run-client.sh stop`)
-- `i` - Show transcriber status
-- `q` - Quit the application (fast, graceful shutdown)
-- `?` - Show available commands

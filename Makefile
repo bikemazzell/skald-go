@@ -82,9 +82,9 @@ clean:
 install: release
 	@echo "📥 Installing Skald-Go system-wide..."
 	@mkdir -p ~/.local/bin/skald-go
-	@cp release/skald-go-static-*/skald ~/.local/bin/skald-go/
-	@cp release/skald-go-static-*/config.json ~/.local/bin/skald-go/
-	@cp release/skald-go-static-*/skald.service ~/.local/bin/skald-go/
+	@cp release/skald-go-*/skald ~/.local/bin/skald-go/
+	@cp release/skald-go-*/config.json ~/.local/bin/skald-go/
+	@cp release/skald-go-*/skald.service ~/.local/bin/skald-go/
 	@echo "export PATH=\"\$$HOME/.local/bin/skald-go:\$$PATH\"" >> ~/.bashrc
 	@echo "✅ Installed to ~/.local/bin/skald-go/"
 	@echo "💡 Restart terminal or run: source ~/.bashrc"
