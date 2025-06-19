@@ -61,6 +61,42 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 	// Create clipboard manager with auto-paste setting from config
 	clipboard := utils.NewClipboardManager(cfg.Processing.AutoPaste)
 
+	// Initialize whisper model once at startup for persistence
+	modelPath := modelMgr.GetModelPath()
+	if cfg.Verbose {
+		logger.Printf("Loading Whisper model at startup: %s", modelPath)
+	}
+
+	if _, err := os.Stat(modelPath); err != nil {
+		return nil, fmt.Errorf("model file not accessible: %w", err)
+	}
+
+	whisperInstance, err := whisper.New(modelPath, whisper.Config{
+		Language:           cfg.Whisper.Language,
+		AutoDetectLanguage: cfg.Whisper.AutoDetectLanguage,
+		SupportedLanguages: cfg.Whisper.SupportedLanguages,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize whisper model: %w", err)
+	}
+
+	// Log language configuration
+	if cfg.Whisper.AutoDetectLanguage && whisperInstance.IsMultilingual() {
+		if cfg.Verbose {
+			logger.Printf("Language auto-detection enabled for multilingual model")
+			supportedLangs := whisperInstance.GetSupportedLanguages()
+			logger.Printf("Supported languages: %v", supportedLangs[:10])
+		}
+	} else {
+		if cfg.Verbose {
+			logger.Printf("Using fixed language: %s", cfg.Whisper.Language)
+		}
+	}
+
+	if cfg.Verbose {
+		logger.Printf("Whisper model loaded and ready for persistent use")
+	}
+
 	return &Transcriber{
 		cfg:       cfg,
 		logger:    logger,
@@ -68,6 +104,7 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 		modelMgr:  modelMgr,
 		recorder:  recorder,
 		clipboard: clipboard,
+		whisper:   whisperInstance,
 	}, nil
 }
 
@@ -87,38 +124,9 @@ func (t *Transcriber) Start() error {
 		return fmt.Errorf("failed to create recorder: %w", err)
 	}
 
-	// Get model path and verify it exists
-	modelPath := t.modelMgr.GetModelPath()
+	// Whisper model is already loaded and persistent - no need to reinitialize
 	if t.cfg.Verbose {
-		t.logger.Printf("Using model at path: %s", modelPath)
-	}
-
-	if _, err := os.Stat(modelPath); err != nil {
-		return fmt.Errorf("model file not accessible: %w", err)
-	}
-
-	// Initialize whisper
-	whisperInstance, err := whisper.New(modelPath, whisper.Config{
-		Language:           t.cfg.Whisper.Language,
-		AutoDetectLanguage: t.cfg.Whisper.AutoDetectLanguage,
-		SupportedLanguages: t.cfg.Whisper.SupportedLanguages,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to initialize whisper: %w", err)
-	}
-	t.whisper = whisperInstance
-
-	// Log language configuration
-	if t.cfg.Whisper.AutoDetectLanguage && t.whisper.IsMultilingual() {
-		if t.cfg.Verbose {
-			t.logger.Printf("Language auto-detection enabled for multilingual model")
-			supportedLangs := t.whisper.GetSupportedLanguages()
-			t.logger.Printf("Supported languages: %v", supportedLangs[:10]) // Show first 10 languages
-		}
-	} else {
-		if t.cfg.Verbose {
-			t.logger.Printf("Using fixed language: %s", t.cfg.Whisper.Language)
-		}
+		t.logger.Printf("Using persistent Whisper model for session")
 	}
 
 	// Create context with timeout if continuous mode has max session duration
