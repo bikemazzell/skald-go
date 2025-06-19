@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,14 +16,18 @@ import (
 )
 
 var (
-	configPath string
-	verbose    bool
-	version    string
+	configPath  string
+	verbose     bool
+	version     string
+	buildTime   string
+	gitCommit   string
+	showVersion bool
 )
 
 func init() {
 	flag.StringVar(&configPath, "config", "config.json", "path to configuration file")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose logging")
+	flag.BoolVar(&showVersion, "version", false, "show version information")
 	flag.Parse()
 }
 
@@ -37,10 +40,28 @@ func displayBanner() {
 	fmt.Printf(banner+"\n", version)
 }
 
+func printVersion() {
+	if version == "" {
+		version = "development"
+	}
+	fmt.Printf("Skald-Go %s\n", version)
+	if gitCommit != "" {
+		fmt.Printf("Commit: %s\n", gitCommit)
+	}
+	if buildTime != "" {
+		fmt.Printf("Built: %s\n", buildTime)
+	}
+}
+
 func main() {
+	if showVersion {
+		printVersion()
+		return
+	}
+
 	displayBanner()
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger := setupLogger()
 	
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {

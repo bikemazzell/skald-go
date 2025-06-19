@@ -99,7 +99,7 @@ func (cm *ClipboardManager) validateSecurityFocused(text string, allowPunctuatio
     }
 
     dangerousCommands := []string{
-        "rm -rf", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
+        "rm -rf", "rm\t-rf", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
         "curl -", "wget -", "bash -", "sh -", "eval ", "exec ",
     }
     

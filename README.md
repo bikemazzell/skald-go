@@ -139,43 +139,38 @@ make build
 ```
 This will compile both server and client binaries.
 
-## Creating a Distributable Package
+## Creating a Release Package
 
-Skald-Go includes a packaging script that creates a self-contained directory with all necessary files for distribution:
+Skald-Go includes a release build system that creates self-contained distribution packages:
 
 ```bash
-make package
+make release
 ```
 
-This script will:
-- Build the application
-- Create a package directory (`skald-package`)
-- Copy binaries, libraries, and configuration files
-- Create wrapper scripts for running the server and client
-- Include a systemd service file for easy installation
-- Generate a README with installation and usage instructions
+This will:
+- Build optimized binaries with all dependencies
+- Create a complete release package with libraries
+- Generate a distributable tarball (e.g., `skald-go-0.8.0-linux-x64.tar.gz`)
+- Include launcher scripts, systemd service, and documentation
 
-The resulting package can be distributed to other users or systems without requiring them to build from source. Users can simply run the included wrapper scripts to start using Skald-Go.
+To install a release package:
 
-To install the packaged application:
-
-1. Copy the package directory to the desired location:
+1. Extract the release tarball:
    ```bash
-   cp -r skald-package ~/skald-go
+   tar -xzf skald-go-*-linux-x64.tar.gz
+   cd skald-go-*
    ```
 
-2. Run the server:
+2. Start the server:
    ```bash
-   cd ~/skald-go
-   ./run-server.sh
+   ./skald server
    ```
 
-3. In another terminal, control the transcription:
+3. In another terminal, control transcription:
    ```bash
-   cd ~/skald-go
-   ./run-client.sh start   # Start transcription
-   ./run-client.sh stop    # Stop transcription
-   ./run-client.sh status  # Check status
+   ./skald start    # Start transcription
+   ./skald stop     # Stop transcription
+   ./skald status   # Check status
    ```
 
 ## Model Management
