@@ -49,25 +49,25 @@ type Server struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 
-	keyActions     []KeyAction
+	keyActions     map[rune]KeyAction
 	keyboardActive bool
-	
-	statsMu sync.RWMutex
-	stats   ServerStats
+
+	statsMu        sync.RWMutex
+	stats          ServerStats
 	keyboardCtx    context.Context
 	keyboardCancel context.CancelFunc
 }
 
 type ServerStats struct {
-	StartTime            time.Time
+	StartTime             time.Time
 	LastTranscriptionTime time.Time
-	TranscriptionCount   int
-	ErrorCount           int
-	LastError            string
-	LastErrorTime        time.Time
-	CurrentState         string
-	SessionDuration      time.Duration
-	RecentLogs           []LogEntry
+	TranscriptionCount    int
+	ErrorCount            int
+	LastError             string
+	LastErrorTime         time.Time
+	CurrentState          string
+	SessionDuration       time.Duration
+	RecentLogs            []LogEntry
 }
 
 type LogEntry struct {
@@ -79,13 +79,13 @@ type LogEntry struct {
 func (s *Server) logActivity(level, message string) {
 	s.statsMu.Lock()
 	defer s.statsMu.Unlock()
-	
+
 	entry := LogEntry{
 		Timestamp: time.Now(),
 		Level:     level,
 		Message:   message,
 	}
-	
+
 	s.stats.RecentLogs = append(s.stats.RecentLogs, entry)
 	if len(s.stats.RecentLogs) > 100 {
 		s.stats.RecentLogs = s.stats.RecentLogs[1:]
@@ -95,17 +95,17 @@ func (s *Server) logActivity(level, message string) {
 func (s *Server) updateErrorStats(err error) {
 	s.statsMu.Lock()
 	defer s.statsMu.Unlock()
-	
+
 	s.stats.ErrorCount++
 	s.stats.LastError = err.Error()
 	s.stats.LastErrorTime = time.Now()
-	
+
 	entry := LogEntry{
 		Timestamp: time.Now(),
 		Level:     "ERROR",
 		Message:   err.Error(),
 	}
-	
+
 	s.stats.RecentLogs = append(s.stats.RecentLogs, entry)
 	if len(s.stats.RecentLogs) > 100 {
 		s.stats.RecentLogs = s.stats.RecentLogs[1:]
@@ -115,7 +115,7 @@ func (s *Server) updateErrorStats(err error) {
 func (s *Server) updateStateStats(state string) {
 	s.statsMu.Lock()
 	defer s.statsMu.Unlock()
-	
+
 	s.stats.CurrentState = state
 	if state == "transcribing" {
 		s.stats.TranscriptionCount++
@@ -126,39 +126,39 @@ func (s *Server) updateStateStats(state string) {
 func (s *Server) buildStatusResponse(isRunning bool, verbose bool) Response {
 	s.statsMu.RLock()
 	defer s.statsMu.RUnlock()
-	
+
 	status := "stopped"
 	if isRunning {
 		status = "running"
 	}
-	
+
 	resp := Response{
 		Status:  "success",
 		Message: fmt.Sprintf("Transcriber is %s", status),
 	}
-	
+
 	if verbose {
 		resp.Data = map[string]interface{}{
-			"state":                s.stats.CurrentState,
-			"uptime":               time.Since(s.stats.StartTime).String(),
-			"transcription_count":  s.stats.TranscriptionCount,
-			"error_count":          s.stats.ErrorCount,
-			"last_transcription":   s.formatTime(s.stats.LastTranscriptionTime),
-			"last_error":           s.stats.LastError,
-			"last_error_time":      s.formatTime(s.stats.LastErrorTime),
-			"continuous_mode":      s.cfg.Processing.ContinuousMode.Enabled,
-			"model":                s.cfg.Whisper.Model,
-			"language":             s.cfg.Whisper.Language,
+			"state":               s.stats.CurrentState,
+			"uptime":              time.Since(s.stats.StartTime).String(),
+			"transcription_count": s.stats.TranscriptionCount,
+			"error_count":         s.stats.ErrorCount,
+			"last_transcription":  s.formatTime(s.stats.LastTranscriptionTime),
+			"last_error":          s.stats.LastError,
+			"last_error_time":     s.formatTime(s.stats.LastErrorTime),
+			"continuous_mode":     s.cfg.Processing.ContinuousMode.Enabled,
+			"model":               s.cfg.Whisper.Model,
+			"language":            s.cfg.Whisper.Language,
 		}
 	}
-	
+
 	return resp
 }
 
 func (s *Server) buildLogsResponse() Response {
 	s.statsMu.RLock()
 	defer s.statsMu.RUnlock()
-	
+
 	logs := make([]map[string]string, len(s.stats.RecentLogs))
 	for i, log := range s.stats.RecentLogs {
 		logs[i] = map[string]string{
@@ -167,7 +167,7 @@ func (s *Server) buildLogsResponse() Response {
 			"message":   log.Message,
 		}
 	}
-	
+
 	return Response{
 		Status:  "success",
 		Message: fmt.Sprintf("Retrieved %d log entries", len(logs)),
@@ -184,12 +184,7 @@ func (s *Server) formatTime(t time.Time) string {
 	return t.Format("2006-01-02 15:04:05")
 }
 
-func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Server, error) {
-	t, err := transcriber.New(cfg, logger, modelMgr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transcriber: %w", err)
-	}
-
+func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager, t *transcriber.Transcriber) *Server {
 	s := &Server{
 		cfg:         cfg,
 		transcriber: t,
@@ -201,106 +196,85 @@ func New(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (
 			RecentLogs:   make([]LogEntry, 0, 100),
 		},
 	}
-
 	s.setupKeyActions()
+	return s
+}
 
-	return s, nil
+func NewDefaultServer(cfg *config.Config, logger *log.Logger, modelMgr *model.ModelManager) (*Server, error) {
+	t, err := transcriber.New(cfg, logger, modelMgr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transcriber: %w", err)
+	}
+	return New(cfg, logger, modelMgr, t), nil
 }
 
 func (s *Server) setupKeyActions() {
-	s.keyActions = []KeyAction{}
-	
-	actionHandlers := map[string]func() error{
-		"start": func() error {
-			err := s.transcriber.Start()
-			if err == nil {
-				fmt.Println("\nTranscription started - listening for speech...")
-			}
-			return err
-		},
-		"stop": func() error {
-			err := s.transcriber.Stop()
-			if err == nil {
-				fmt.Println("\nTranscription stopped")
-			}
-			return err
-		},
-		"status": func() error {
-			isRunning := s.transcriber.IsRunning()
-			status := "stopped"
-			if isRunning {
-				status = "running"
-			}
-			fmt.Printf("\nTranscriber status: %s\n\n", status)
-			return nil
-		},
-		"quit": func() error {
-			s.logger.Printf("Quit requested via keyboard")
-			
-			// Send interrupt signal to trigger graceful shutdown
-			go func() {
-				time.Sleep(10 * time.Millisecond) // Small delay to ensure log is printed
-				if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
-					s.logger.Printf("Error sending interrupt signal: %v", err)
-				}
-			}()
-
-			return nil
-		},
-		"help": func() error {
-			return s.printKeyboardHelp()
-		},
-		"resume": func() error {
-			s.logger.Printf("Manual resume requested")
-			fmt.Println("\nManual resume triggered (not yet implemented)")
-			return nil
-		},
-	}
-	
-	actionDescs := map[string]string{
-		"start":  "Start transcription",
-		"stop":   "Stop transcription", 
-		"status": "Show transcriber status",
-		"quit":   "Quit the application",
-		"help":   "Show available commands",
-		"resume": "Resume continuous recording",
-	}
-	
-	for keyStr, action := range s.cfg.Server.Hotkeys {
-		if len(keyStr) != 1 {
-			s.logger.Printf("Warning: Invalid hotkey '%s' - must be single character", keyStr)
-			continue
-		}
-		
-		key := rune(keyStr[0])
-		handler, exists := actionHandlers[action]
-		if !exists {
-			s.logger.Printf("Warning: Unknown action '%s' for hotkey '%s'", action, keyStr)
-			continue
-		}
-		
-		desc, hasDesc := actionDescs[action]
-		if !hasDesc {
-			desc = action
-		}
-		
-		s.keyActions = append(s.keyActions, KeyAction{
-			Key:     key,
-			Action:  action,
-			Desc:    desc,
-			Handler: handler,
-		})
-	}
-	
-	if s.cfg.Verbose {
-		s.logger.Printf("Configured %d hotkeys from settings", len(s.keyActions))
+	s.keyActions = map[rune]KeyAction{
+		'r': {Key: 'r', Action: "start", Desc: "Start transcription", Handler: s.handleStart},
+		's': {Key: 's', Action: "stop", Desc: "Stop transcription", Handler: s.handleStop},
+		'i': {Key: 'i', Action: "status", Desc: "Show status", Handler: s.handleStatus},
+		'q': {Key: 'q', Action: "quit", Desc: "Quit", Handler: s.handleQuit},
+		'?': {Key: '?', Action: "help", Desc: "Show help", Handler: s.handleHelp},
+		'c': {Key: 'c', Action: "resume", Desc: "Resume continuous mode", Handler: s.handleResume},
 	}
 }
 
+func (s *Server) handleStart() error {
+	err := s.transcriber.Start()
+	if err == nil {
+		fmt.Println("\nTranscription started - listening for speech...")
+	}
+	return err
+}
+
+func (s *Server) handleStop() error {
+	err := s.transcriber.Stop()
+	if err == nil {
+		fmt.Println("\nTranscription stopped")
+	}
+	return err
+}
+
+func (s *Server) handleStatus() error {
+	isRunning := s.transcriber.IsRunning()
+	status := "stopped"
+	if isRunning {
+		status = "running"
+	}
+	fmt.Printf("\nTranscriber status: %s\n\n", status)
+	return nil
+}
+
+func (s *Server) handleQuit() error {
+	s.logger.Printf("Quit requested via keyboard")
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+			s.logger.Printf("Error sending interrupt signal: %v", err)
+		}
+	}()
+	return nil
+}
+
+func (s *Server) handleHelp() error {
+	return s.printKeyboardHelp()
+}
+
+func (s *Server) handleResume() error {
+	// Implementation for resuming continuous mode would go here.
+	// This is a placeholder.
+	fmt.Println("\nResuming continuous mode...")
+	return nil
+}
+
 func (s *Server) printKeyboardHelp() error {
-	fmt.Println("\nAvailable commands:")
-	for _, action := range s.keyActions {
-		fmt.Printf("  %c - %s\n", action.Key, action.Desc)
+	fmt.Println("\nAvailable keyboard commands:")
+	// The keyActions map is not ordered, so we need to define order for printing
+	printOrder := []rune{'r', 's', 'i', 'c', '?', 'q'}
+	for _, key := range printOrder {
+		if action, ok := s.keyActions[key]; ok {
+			fmt.Printf("  %c: %s\n", action.Key, action.Desc)
+		}
 	}
 	fmt.Println()
 	return nil
@@ -310,125 +284,58 @@ func (s *Server) Start() error {
 	s.mu.Lock()
 	if s.isRunning {
 		s.mu.Unlock()
-		return fmt.Errorf("server already running")
+		return fmt.Errorf("server is already running")
 	}
 
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-
-	if err := s.ensureSocketPathIsSafe(); err != nil {
-		s.mu.Unlock()
-		return fmt.Errorf("socket path is unsafe: %w", err)
-	}
-
-	if err := os.Remove(s.cfg.Server.SocketPath); err != nil && !os.IsNotExist(err) {
-		s.mu.Unlock()
-		return fmt.Errorf("failed to remove existing socket: %w", err)
-	}
-
-	listener, err := net.Listen("unix", s.cfg.Server.SocketPath)
-	if err != nil {
-		s.mu.Unlock()
-		return fmt.Errorf("failed to create socket: %w", err)
-	}
-
-	if err := os.Chmod(s.cfg.Server.SocketPath, 0600); err != nil {
-		listener.Close()
-		s.mu.Unlock()
-		return fmt.Errorf("failed to set socket permissions: %w", err)
-	}
-
-	s.listener = listener
 	s.isRunning = true
 	s.mu.Unlock()
 
-	if s.cfg.Verbose {
-		s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
+	// Start keyboard listener if enabled
+	if s.cfg.Server.KeyboardEnabled {
+		s.keyboardCtx, s.keyboardCancel = context.WithCancel(context.Background())
+		go s.startKeyboardListener()
 	}
 
-	if s.cfg.Server.KeyboardEnabled {
-		s.startKeyboardListener()
-		s.printKeyboardHelp()
+	// Start the main server loop in a goroutine
+	go s.run()
+
+	s.logger.Println("Server started successfully")
+	return nil
+}
+
+func (s *Server) run() {
+	if err := s.ensureSocketPathIsSafe(); err != nil {
+		s.logger.Fatalf("Socket path validation failed: %v", err)
 	}
+
+	var lc net.ListenConfig
+	listener, err := lc.Listen(s.ctx, "unix", s.cfg.Server.SocketPath)
+	if err != nil {
+		s.logger.Fatalf("Failed to listen on socket: %v", err)
+	}
+	s.listener = listener
+
+	s.logger.Printf("Server listening on %s", s.cfg.Server.SocketPath)
 
 	for {
-		// Check if context is cancelled before accepting new connections
-		select {
-		case <-s.ctx.Done():
-			return nil
-		default:
-		}
-
-		if err := s.listener.(*net.UnixListener).SetDeadline(time.Now().Add(100 * time.Millisecond)); err != nil {
-			s.logger.Printf("Failed to set deadline: %v", err)
-		}
-
-		conn, err := listener.Accept()
+		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
-				return nil
+				return
 			default:
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue
-				}
-				if strings.Contains(err.Error(), "use of closed network connection") {
-					return nil
-				}
-				return fmt.Errorf("accept error: %w", err)
+				s.logger.Printf("Failed to accept connection: %v", err)
 			}
+			continue
 		}
 		go s.handleConnection(conn)
 	}
 }
 
-func (s *Server) startKeyboardListener() {
-	s.keyboardCtx, s.keyboardCancel = context.WithCancel(s.ctx)
-	s.keyboardActive = true
-
-	go func() {
-		defer func() {
-			s.keyboardActive = false
-		}()
-
-		if s.cfg.Verbose {
-			s.logger.Printf("Keyboard listener started. Press '?' for help.")
-		}
-
-		var b = make([]byte, 1)
-		for {
-			select {
-			case <-s.keyboardCtx.Done():
-				return
-			default:
-				_ = os.Stdin.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-				_, err := os.Stdin.Read(b)
-				if err != nil {
-					continue
-				}
-
-				s.handleKeyPress(rune(b[0]))
-			}
-		}
-	}()
-}
-
-func (s *Server) handleKeyPress(key rune) {
-	for _, action := range s.keyActions {
-		if action.Key == key {
-			if s.cfg.Verbose {
-				s.logger.Printf("Executing keyboard action: %s", action.Desc)
-			}
-			if err := action.Handler(); err != nil {
-				s.logger.Printf("Error executing action: %v", err)
-			}
-			return
-		}
-	}
-}
-
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
-	s.logger.Printf("New connection received")
+	s.logger.Printf("Client connected")
 
 	decoder := json.NewDecoder(conn)
 	var cmd Command
@@ -495,7 +402,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}
 	s.logger.Printf("Response sent")
 }
-
 
 func (s *Server) Stop() error {
 	s.logger.Printf("Stopping server...")

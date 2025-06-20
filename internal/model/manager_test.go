@@ -11,8 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"skald/internal/config"
 )
 
 func TestModelManager_verifyModelChecksum(t *testing.T) {
@@ -36,9 +34,8 @@ func TestModelManager_verifyModelChecksum(t *testing.T) {
 	expectedSHA256 := hex.EncodeToString(hasher.Sum(nil))
 
 	// Create model manager
-	cfg := &config.Config{}
 	logger := log.New(io.Discard, "", 0)
-	mm := New(cfg, logger)
+	mm := New(logger)
 
 	// Test valid checksum
 	err = mm.verifyModelChecksum(testFile, expectedSHA256)
@@ -82,13 +79,18 @@ func TestModelManager_downloadModel(t *testing.T) {
 	defer server.Close()
 
 	// Create model manager
-	cfg := &config.Config{}
 	logger := log.New(io.Discard, "", 0)
-	mm := New(cfg, logger)
+	mm := New(logger, WithHttpClient(server.Client()))
 
 	// Test successful download with checksum
 	destPath := filepath.Join(tempDir, "downloaded-model.bin")
-	err = mm.downloadModel(server.URL, destPath, expectedSHA256)
+	modelInfo := ModelInfo{
+		Name:     "test-model",
+		URL:      server.URL,
+		SHA256:   expectedSHA256,
+		DestPath: destPath,
+	}
+	err = mm.downloadModel(modelInfo)
 	if err != nil {
 		t.Errorf("Expected no error for successful download, got: %v", err)
 	}
@@ -104,14 +106,25 @@ func TestModelManager_downloadModel(t *testing.T) {
 
 	// Test download with wrong checksum
 	destPath2 := filepath.Join(tempDir, "downloaded-model2.bin")
-	err = mm.downloadModel(server.URL, destPath2, "wrong-checksum")
+	modelInfoWrongChecksum := ModelInfo{
+		Name:     "test-model-wrong-checksum",
+		URL:      server.URL,
+		SHA256:   "wrong-checksum",
+		DestPath: destPath2,
+	}
+	err = mm.downloadModel(modelInfoWrongChecksum)
 	if err == nil {
 		t.Error("Expected error for wrong checksum, got nil")
 	}
 
 	// Test download from invalid URL
 	destPath3 := filepath.Join(tempDir, "downloaded-model3.bin")
-	err = mm.downloadModel("http://invalid-url-that-does-not-exist.com/model.bin", destPath3, "")
+	modelInfoInvalidURL := ModelInfo{
+		Name:     "test-model-invalid-url",
+		URL:      "http://invalid-url-that-does-not-exist.com/model.bin",
+		DestPath: destPath3,
+	}
+	err = mm.downloadModel(modelInfoInvalidURL)
 	if err == nil {
 		t.Error("Expected error for invalid URL, got nil")
 	}
@@ -144,39 +157,41 @@ func TestModelManager_EnsureModelExists(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create config with test model
-	cfg := config.DefaultConfig()
-	cfg.Whisper.Models = map[string]config.WhisperModelInfo{
-		"test-model": {
-			URL:    server.URL,
-			Size:   "1MB",
-			SHA256: expectedSHA256,
-		},
+	logger := log.New(io.Discard, "", 0)
+	mm := New(logger, WithHttpClient(server.Client()))
+
+	modelPath := filepath.Join("models", "ggml-test-model.bin")
+	modelInfo := ModelInfo{
+		Name:     "test-model",
+		URL:      server.URL,
+		SHA256:   expectedSHA256,
+		DestPath: modelPath,
 	}
 
-	logger := log.New(io.Discard, "", 0)
-	mm := New(cfg, logger)
-
 	// Test model download
-	err = mm.EnsureModelExists("test-model")
+	err = mm.EnsureModelExists(modelInfo)
 	if err != nil {
 		t.Errorf("Expected no error for model download, got: %v", err)
 	}
 
 	// Verify model file exists
-	modelPath := filepath.Join("models", "ggml-test-model.bin")
 	if _, err := os.Stat(modelPath); err != nil {
 		t.Errorf("Model file should exist after download: %v", err)
 	}
 
 	// Test with existing model (should not re-download)
-	err = mm.EnsureModelExists("test-model")
+	err = mm.EnsureModelExists(modelInfo)
 	if err != nil {
 		t.Errorf("Expected no error for existing model, got: %v", err)
 	}
 
-	// Test with non-existent model
-	err = mm.EnsureModelExists("non-existent-model")
+	// Test with non-existent model URL but with a valid structure
+	nonExistentModelInfo := ModelInfo{
+		Name:     "non-existent-model",
+		URL:      "http://invalid-url-that-does-not-exist.com/model.bin",
+		DestPath: filepath.Join("models", "ggml-non-existent.bin"),
+	}
+	err = mm.EnsureModelExists(nonExistentModelInfo)
 	if err == nil {
 		t.Error("Expected error for non-existent model, got nil")
 	}
@@ -189,7 +204,7 @@ func TestModelManager_EnsureModelExists(t *testing.T) {
 	}
 
 	// Should detect corruption and re-download
-	err = mm.EnsureModelExists("test-model")
+	err = mm.EnsureModelExists(modelInfo)
 	if err != nil {
 		t.Errorf("Expected no error for re-download after corruption, got: %v", err)
 	}
@@ -206,10 +221,10 @@ func TestModelManager_EnsureModelExists(t *testing.T) {
 
 func TestWriteCounter(t *testing.T) {
 	logger := log.New(io.Discard, "", 0)
-	progress := new(int)
+	progress := 0
 	wc := &WriteCounter{
 		Total:    100,
-		progress: progress,
+		progress: &progress,
 		logger:   logger,
 	}
 
@@ -222,8 +237,8 @@ func TestWriteCounter(t *testing.T) {
 	if n != 50 {
 		t.Errorf("Expected 50 bytes written, got %d", n)
 	}
-	if *progress != 50 {
-		t.Errorf("Expected progress to be 50, got %d", *progress)
+	if *wc.progress != 50 {
+		t.Errorf("Expected progress to be 50, got %d", *wc.progress)
 	}
 
 	// Write more data
@@ -234,7 +249,7 @@ func TestWriteCounter(t *testing.T) {
 	if n != 50 {
 		t.Errorf("Expected 50 bytes written, got %d", n)
 	}
-	if *progress != 100 {
-		t.Errorf("Expected progress to be 100, got %d", *progress)
+	if *wc.progress != 100 {
+		t.Errorf("Expected progress to be 100, got %d", *wc.progress)
 	}
 }

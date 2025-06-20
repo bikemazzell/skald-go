@@ -429,6 +429,24 @@ systemctl --user status skald-server.service
 journalctl --user -u skald-server.service -f
  ```
 
+#### Uninstalling
+
+To completely remove Skald-Go from your system:
+
+```bash
+make uninstall
+```
+
+This will:
+- Stop and disable any running systemd services
+- Terminate any running skald-server processes
+- Remove the installation directory (`~/.local/bin/skald-go/`)
+- Clean up runtime files (`/tmp/skald.sock`, `/tmp/skald-continuous-state`)
+- Remove the PATH entry from `~/.bashrc`
+- Reload systemd to clean up service references
+
+After uninstalling, restart your terminal or run `source ~/.bashrc` to update your PATH.
+
 ## Audio Configuration
 - silence_threshold: Volume level below which audio is considered silence (0.0-1.0)
 - silence_duration: Seconds of silence before recording stops

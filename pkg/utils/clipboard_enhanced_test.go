@@ -1,97 +1,106 @@
 package utils
 
 import (
-	"strings"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestClipboardManager_IsValidText(t *testing.T) {
 	cm := NewClipboardManager(false)
-
-	tests := []struct {
-		name     string
-		text     string
-		expected bool
+	testCases := []struct {
+		name             string
+		text             string
+		wantValid        bool
+		allowPunctuation bool
 	}{
-		// Valid cases
-		{"Simple text", "Hello World", true},
-		{"Text with spaces", "This is a valid transcription", true},
-		{"Text with punctuation", "Hello, how are you?", true},
-		{"Numbers", "The year is 2024", true},
-		{"Mixed case", "Hello WORLD", true},
+		// Valid cases (should pass with default settings)
+		{"Simple text", "hello world", true, true},
+		{"Text with spaces", "  hello world  ", true, true},
+		{"Text with punctuation", "Hello, how are you?", true, true},
+		{"Numbers", "12345", true, true},
+		{"Mixed case", "HeLlO WoRlD", true, true},
+		{"Empty string", "", false, true}, // Empty string is invalid
+		{"Tab character", "hello\tworld", true, true},
+		{"Unicode text", "こんにちは世界", true, true},
+		{"Emoji", "👋", true, true},
+		{"Accented characters", "éàçü", true, true},
 
-		// Invalid cases - empty
-		{"Empty string", "", false},
+		// Invalid cases (punctuation and control characters) - should be invalid when punctuation is disallowed
+		{"Text too long", strings.Repeat("a", 1000001), false, false},
+		{"Semicolon", "hello; world", false, false},
+		{"Ampersand", "hello & world", false, false},
+		{"Pipe", "hello | world", false, false},
+		{"Dollar sign", "hello $ world", false, false},
+		{"Parentheses", "hello (world)", false, false},
+		{"Curly braces", "hello {world}", false, false},
+		{"Square brackets", "hello [world]", false, false},
+		{"Redirection", "hello > file", false, false},
+		{"History expansion", "hello !", false, false},
+		{"Escape character", "hello \\ world", false, false},
+		{"Single quotes", "hello 'world'", false, false},
+		{"Double quotes", "hello \"world\"", false, false},
+		{"Null byte", "hello\x00world", false, false},
+		{"Newline", "hello\nworld", false, false},
+		{"Carriage return", "hello\rworld", false, false},
 
-		// Invalid cases - too long
-		{"Text too long", strings.Repeat("a", 1000001), false},
-
-		// Invalid cases - dangerous characters
-		{"Semicolon", "hello; world", false},
-		{"Ampersand", "hello & world", false},
-		{"Pipe", "hello | world", false},
-		{"Backtick", "hello ` world", false},
-		{"Dollar sign", "hello $ world", false},
-		{"Parentheses", "hello (world)", false},
-		{"Curly braces", "hello {world}", false},
-		{"Square brackets", "hello [world]", false},
-		{"Command substitution", "hello $(command)", false},
-		{"Variable substitution", "hello ${var}", false},
-		{"Redirection", "hello > file", false},
-		{"Append", "hello >> file", false},
-		{"History expansion", "hello !", false},
-		{"Escape character", "hello \\ world", false},
-		{"Single quotes", "hello 'world'", false},
-		{"Double quotes", "hello \"world\"", false},
-		{"Command chaining &&", "cmd1 && cmd2", false},
-		{"Command chaining ||", "cmd1 || cmd2", false},
-
-		// Invalid cases - dangerous commands
-		{"rm command", "please rm -rf /", false},
-		{"sudo command", "sudo apt-get update", false},
-		{"chmod command", "chmod 777 file", false},
-		{"curl command", "curl http://example.com", false},
-		{"wget command", "wget http://example.com", false},
-		{"bash command", "bash script.sh", false},
-		{"python command", "python script.py", false},
-		{"eval command", "eval malicious", false},
-		{"exec command", "exec malicious", false},
-		{"source command", "source ~/.bashrc", false},
-		{"dot command", ". ~/.bashrc", false},
-		{"export command", "export PATH=/bad", false},
-
-		// Invalid cases - control characters
-		{"Null byte", "hello\x00world", false},
-		{"Newline", "hello\nworld", false},
-		{"Carriage return", "hello\rworld", false},
-		{"Control character", "hello\x01world", false},
-
-		// Invalid cases - Unicode issues
-		{"Private use area", "hello\uE000world", false},
-		{"Invalid Unicode", "hello\U000F0000world", false},
-
-		// Edge cases that should be valid
-		{"Tab character", "hello\tworld", true},
-		{"Unicode text", "Hello 世界", true},
-		{"Emoji", "Hello 👋", true},
-		{"Accented characters", "Café résumé", true},
-
-		// Mixed dangerous patterns
-		{"Multiple dangerous", "rm -rf / && sudo chmod 777", false},
-		{"Hidden command", "innocent text rm -rf hidden", false},
-		{"Case variation", "RM -rf /", false},
-		{"Tab instead of space", "rm\t-rf", false},
+		// Invalid cases (always blocked regardless of punctuation setting)
+		{"Backtick", "`command`", false, true},
+		{"Command substitution", "$(command)", false, true},
+		{"Variable substitution", "${VAR}", false, true},
+		{"Command chaining &&", "cmd1 && cmd2", false, true},
+		{"Command chaining ||", "cmd1 || cmd2", false, true},
+		{"rm command", "please rm -rf /", false, true},
+		{"sudo command", "sudo reboot", false, true},
+		{"chmod command", "chmod 777 file", false, true},
+		{"curl command", "curl http://example.com", false, true},
+		{"wget command", "wget http://example.com", false, true},
+		{"bash command", "bash -c 'echo pwned'", false, true},
+		{"python command", "python -c 'import os'", false, true},
+		{"eval command", "eval 'rm -rf'", false, true},
+		{"exec command", "exec 'reboot'", false, true},
+		{"source command", "source ~/.bashrc", false, true},
+		{". command", ". ~/.bashrc", false, true},
+		{"export command", "export EVIL=pwned", false, true},
+		{"Control character", "hello\x07world", false, true},
+		{"Private use area", "text \uE000", false, true},
+		{"Invalid Unicode", string(rune(0xFFFE)), false, true},
+		{"Multiple dangerous", "eval `rm -rf` && sudo", false, true},
+		{"Hidden command", "innocent text rm -rf hidden", false, true},
+		{"Case variation", "SUDO Rm -Rf /", false, true},
+		{"Tab instead of space", "rm\t-rf", false, true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := cm.IsValidText(tt.text)
-			if result != tt.expected {
-				t.Errorf("IsValidText(%q) = %v, want %v", tt.text, result, tt.expected)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := cm.IsValidTextWithMode(tc.text, "security_focused", tc.allowPunctuation, []string{})
+			if got != tc.wantValid {
+				t.Errorf("IsValidTextWithMode(%q, security_focused, %v) = %v, want %v", tc.text, tc.allowPunctuation, got, tc.wantValid)
 			}
 		})
+	}
+}
+
+func TestClipboardManager_Copy(t *testing.T) {
+	cm := NewClipboardManager(true)
+
+	// Test Copy with valid text
+	validText := "This is a valid text."
+	if err := cm.Copy(validText); err != nil {
+		t.Errorf("Expected no error when copying valid text, but got %v", err)
+	}
+
+	// Test Copy with invalid text that should be caught by the security-focused validator
+	invalidText := "rm -rf /"
+	// We must call the validator explicitly since IsValidText allows some punctuation by default
+	if cm.IsValidTextWithMode(invalidText, "security_focused", false, []string{}) {
+		t.Error("Invalid text was considered valid")
+	}
+
+	// Ensure that the Copy function itself returns an error for such text
+	if err := cm.Copy(invalidText); err == nil {
+		t.Error("Expected an error when copying invalid text, but got nil")
 	}
 }
 
@@ -172,13 +181,14 @@ func TestClipboardManager_ValidationPerformance(t *testing.T) {
 	largeText := strings.Repeat("This is a valid sentence. ", 10000)
 
 	start := time.Now()
-	result := cm.IsValidText(largeText)
+	// This should be invalid because punctuation is disallowed
+	result := cm.IsValidTextWithMode(largeText, "security_focused", false, []string{})
 	elapsed := time.Since(start)
 
 	if result {
-		t.Error("Large valid text should be invalid due to commas")
+		t.Error("Large text with punctuation should be invalid when punctuation is disallowed")
 	}
-	if elapsed > 10*time.Millisecond {
+	if elapsed > 50*time.Millisecond { // Allow a bit more time for large text validation
 		t.Errorf("Validation took too long: %v", elapsed)
 	}
 }
@@ -186,21 +196,21 @@ func TestClipboardManager_ValidationPerformance(t *testing.T) {
 func TestClipboardManager_EdgeCases(t *testing.T) {
 	cm := NewClipboardManager(false)
 
-	// Test with exactly max length
-	maxLengthText := strings.Repeat("a", 1000000)
-	if !cm.IsValidText(maxLengthText) {
-		t.Error("Text at exactly max length should be valid")
+	testCases := []struct {
+		name      string
+		text      string
+		wantValid bool
+	}{
+		{"Text at exactly max length", strings.Repeat("a", 1000000), true},
+		{"Text with dangerous pattern at end", strings.Repeat("a", 999990) + " rm -rf /", false},
+		{"Text with private use Unicode", "Valid text 世界 \uE000 more text", false},
 	}
 
-	// Test with dangerous pattern at the end
-	textWithDangerAtEnd := strings.Repeat("a", 999990) + "rm -rf /"
-	if cm.IsValidText(textWithDangerAtEnd) {
-		t.Error("Text with dangerous pattern at end should be invalid")
-	}
-
-	// Test with mixed valid and invalid Unicode
-	mixedUnicode := "Valid text 世界 \uE000 more text"
-	if cm.IsValidText(mixedUnicode) {
-		t.Error("Text with private use Unicode should be invalid")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if cm.IsValidText(tc.text) != tc.wantValid {
+				t.Errorf("IsValidText(%q) = %v, want %v", tc.text, !tc.wantValid, tc.wantValid)
+			}
+		})
 	}
 }

@@ -1,4 +1,4 @@
-.PHONY: debug release clean test install
+.PHONY: debug release clean test install uninstall
 
 # Version information
 VERSION=$(shell cat VERSION 2>/dev/null || echo "0.0.0")
@@ -90,19 +90,63 @@ install: release
 	@echo "💡 Restart terminal or run: source ~/.bashrc"
 	@echo "💡 Then use: skald server, skald start, etc."
 
+# Uninstall system-wide installation
+uninstall:
+	@echo "🗑️  Uninstalling Skald-Go..."
+	@# Stop and disable systemd service if it exists
+	@if systemctl --user is-active skald.service >/dev/null 2>&1; then \
+		echo "🛑 Stopping systemd service..."; \
+		systemctl --user stop skald.service; \
+	fi
+	@if systemctl --user is-enabled skald.service >/dev/null 2>&1; then \
+		echo "🚫 Disabling systemd service..."; \
+		systemctl --user disable skald.service; \
+	fi
+	@# Stop any running skald processes
+	@if pgrep -f "skald-server" >/dev/null 2>&1; then \
+		echo "🛑 Stopping running skald-server processes..."; \
+		pkill -TERM -f "skald-server" || true; \
+		sleep 2; \
+		if pgrep -f "skald-server" >/dev/null 2>&1; then \
+			echo "🔨 Force killing remaining skald-server processes..."; \
+			pkill -KILL -f "skald-server" || true; \
+		fi; \
+	fi
+	@# Clean up socket and state files
+	@echo "🧹 Cleaning up runtime files..."
+	@rm -f /tmp/skald.sock
+	@rm -f /tmp/skald-continuous-state
+	@# Remove installation directory
+	@if [ -d ~/.local/bin/skald-go ]; then \
+		echo "📁 Removing installation directory..."; \
+		rm -rf ~/.local/bin/skald-go; \
+	fi
+	@# Remove PATH entry from .bashrc
+	@if [ -f ~/.bashrc ] && grep -q "\.local/bin/skald-go" ~/.bashrc; then \
+		echo "🔧 Removing PATH entry from ~/.bashrc..."; \
+		sed -i '/export PATH.*\.local\/bin\/skald-go/d' ~/.bashrc; \
+	fi
+	@# Reload systemd user daemon to remove service references
+	@systemctl --user daemon-reload >/dev/null 2>&1 || true
+	@echo "✅ Uninstall complete!"
+	@echo "💡 Restart terminal or run: source ~/.bashrc to update PATH"
+	@echo "💡 Any downloaded models in the old directory have been removed"
+
 # Show help
 help:
 	@echo "Skald-Go Build System"
 	@echo ""
 	@echo "Commands:"
-	@echo "  debug    - Fast build for development (requires dependencies)"
-	@echo "  release  - Self-contained binary for distribution"
-	@echo "  test     - Run test suite"
-	@echo "  clean    - Remove all build artifacts"
-	@echo "  install  - Install release binary system-wide"
-	@echo "  deps     - Install/update dependencies (for debug)"
+	@echo "  debug     - Fast build for development (requires dependencies)"
+	@echo "  release   - Self-contained binary for distribution"
+	@echo "  test      - Run test suite"
+	@echo "  clean     - Remove all build artifacts"
+	@echo "  install   - Install release binary system-wide"
+	@echo "  uninstall - Remove system-wide installation completely"
+	@echo "  deps      - Install/update dependencies (for debug)"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make debug    # Quick development build"
-	@echo "  make release  # Production build"
-	@echo "  make install  # Install for daily use"
+	@echo "  make debug     # Quick development build"
+	@echo "  make release   # Production build"
+	@echo "  make install   # Install for daily use"
+	@echo "  make uninstall # Remove installation"

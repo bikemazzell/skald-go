@@ -12,28 +12,59 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"skald/internal/config"
 )
 
+type ModelInfo struct {
+	Name               string
+	URL                string
+	SHA256             string
+	DestPath           string
+	InsecureSkipVerify bool
+}
+
 type ModelManager struct {
-	cfg       *config.Config
+	client    *http.Client
 	logger    *log.Logger
 	modelPath string
 }
 
-func New(cfg *config.Config, logger *log.Logger) *ModelManager {
-	return &ModelManager{
-		cfg:    cfg,
-		logger: logger,
+type ModelManagerOption func(*ModelManager)
+
+func WithHttpClient(client *http.Client) ModelManagerOption {
+	return func(m *ModelManager) {
+		m.client = client
 	}
 }
 
-func (m *ModelManager) Initialize(modelName string) error {
-	if err := m.EnsureModelExists(modelName); err != nil {
+func New(logger *log.Logger, opts ...ModelManagerOption) *ModelManager {
+	mm := &ModelManager{
+		logger: logger,
+	}
+
+	for _, opt := range opts {
+		opt(mm)
+	}
+
+	if mm.client == nil {
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		}
+		mm.client = &http.Client{
+			Timeout:   30 * time.Minute,
+			Transport: transport,
+		}
+	}
+
+	return mm
+}
+
+func (m *ModelManager) Initialize(info ModelInfo) error {
+	if err := m.EnsureModelExists(info); err != nil {
 		return err
 	}
-	m.modelPath = filepath.Join("models", fmt.Sprintf("ggml-%s.bin", modelName))
+	m.modelPath = info.DestPath
 	return nil
 }
 
@@ -56,8 +87,8 @@ func (m *ModelManager) GetModelPath() string {
 	return absPath
 }
 
-func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error {
-	tmpPath := destPath + ".tmp"
+func (m *ModelManager) downloadModel(info ModelInfo) error {
+	tmpPath := info.DestPath + ".tmp"
 	out, err := os.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
@@ -67,24 +98,24 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 		os.Remove(tmpPath)
 	}()
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		},
-	}
-	
-	if strings.HasPrefix(url, "https://127.0.0.1") || strings.HasPrefix(url, "https://localhost") {
-		transport.TLSClientConfig.InsecureSkipVerify = true
-	}
-	
-	client := &http.Client{
-		Timeout: 30 * time.Minute,
-		Transport: transport,
+	transport, ok := m.client.Transport.(*http.Transport)
+	if !ok {
+		return fmt.Errorf("http client transport is not a *http.Transport")
 	}
 
-	resp, err := client.Get(url)
+	if info.InsecureSkipVerify {
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	} else if strings.HasPrefix(info.URL, "https://127.0.0.1") || strings.HasPrefix(info.URL, "https://localhost") {
+		// For local development, allow insecure connections to localhost
+		transport.TLSClientConfig.InsecureSkipVerify = true
+	} else {
+		// Ensure it's disabled for other cases
+		transport.TLSClientConfig.InsecureSkipVerify = false
+	}
+
+	resp, err := m.client.Get(info.URL)
 	if err != nil {
-		return fmt.Errorf("failed to download file: %w", err)
+		return fmt.Errorf("failed to download file from %s: %w", info.URL, err)
 	}
 	defer resp.Body.Close()
 
@@ -110,19 +141,19 @@ func (m *ModelManager) downloadModel(url, destPath, expectedSHA256 string) error
 		return fmt.Errorf("failed to close file: %w", err)
 	}
 
-	if expectedSHA256 != "" {
+	if info.SHA256 != "" {
 		actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
-		if actualSHA256 != expectedSHA256 {
-			return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedSHA256, actualSHA256)
+		if actualSHA256 != info.SHA256 {
+			return fmt.Errorf("checksum mismatch: expected %s, got %s", info.SHA256, actualSHA256)
 		}
 		m.logger.Printf("Checksum verified: %s", actualSHA256)
 	}
 
-	if err := os.Rename(tmpPath, destPath); err != nil {
+	if err := os.Rename(tmpPath, info.DestPath); err != nil {
 		return fmt.Errorf("failed to move file to final destination: %w", err)
 	}
 
-	if err := os.Chmod(destPath, 0644); err != nil {
+	if err := os.Chmod(info.DestPath, 0644); err != nil {
 		m.logger.Printf("Warning: failed to set permissions on model file: %v", err)
 	}
 
@@ -137,41 +168,38 @@ type WriteCounter struct {
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
 	n := len(p)
-	current := int(*wc.progress+n) * 100 / int(wc.Total)
-	if current != *wc.progress {
-		*wc.progress = current
-		wc.logger.Printf("Downloading... %d%%", current)
+	*wc.progress += n
+	if wc.Total > 0 {
+		percentage := int(float64(*wc.progress) / float64(wc.Total) * 100)
+		wc.logger.Printf("Downloading... %d%%", percentage)
+	} else {
+		wc.logger.Printf("Downloading... %d bytes", *wc.progress)
 	}
 	return n, nil
 }
 
-func (m *ModelManager) EnsureModelExists(modelName string) error {
-	if modelName == "" {
+func (m *ModelManager) EnsureModelExists(info ModelInfo) error {
+	if info.Name == "" {
 		return fmt.Errorf("model name cannot be empty")
 	}
 
-	modelInfo, exists := m.cfg.Whisper.Models[modelName]
-	if !exists {
-		return fmt.Errorf("model %s not found in configuration", modelName)
-	}
-
-	modelsDir := "models"
-	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(info.DestPath), 0755); err != nil {
 		return fmt.Errorf("failed to create models directory: %w", err)
 	}
 
-	modelPath := filepath.Join(modelsDir, fmt.Sprintf("ggml-%s.bin", modelName))
-
-	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		m.logger.Printf("Model %s not found locally, downloading from %s...", modelName, modelInfo.URL)
-		if err := m.downloadModel(modelInfo.URL, modelPath, modelInfo.SHA256); err != nil {
+	_, err := os.Stat(info.DestPath)
+	if os.IsNotExist(err) {
+		m.logger.Printf("Model %s not found locally, downloading from %s...", info.Name, info.URL)
+		if err := m.downloadModel(info); err != nil {
 			return fmt.Errorf("failed to download model: %w", err)
 		}
-		m.logger.Printf("Model %s downloaded successfully", modelName)
-	} else if modelInfo.SHA256 != "" {
-		if err := m.verifyModelChecksum(modelPath, modelInfo.SHA256); err != nil {
+		m.logger.Printf("Model %s downloaded successfully", info.Name)
+	} else if err != nil {
+		return fmt.Errorf("failed to stat model file: %w", err)
+	} else if info.SHA256 != "" {
+		if err := m.verifyModelChecksum(info.DestPath, info.SHA256); err != nil {
 			m.logger.Printf("Warning: %v. Re-downloading model...", err)
-			if err := m.downloadModel(modelInfo.URL, modelPath, modelInfo.SHA256); err != nil {
+			if err := m.downloadModel(info); err != nil {
 				return fmt.Errorf("failed to re-download model: %w", err)
 			}
 		}

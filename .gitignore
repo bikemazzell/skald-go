@@ -31,9 +31,16 @@ deps/
 lib/
 
 # Scaffolding
-#.claude
-#Claude.md
+.claude
+Claude.md
 
 # Binaries
 service
 client
+skald
+skald-client
+skald-service
+skald.service
+checksums.txt
+**.tar.gz
+release/

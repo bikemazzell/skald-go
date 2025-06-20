@@ -62,7 +62,7 @@ func main() {
 	displayBanner()
 
 	logger := setupLogger()
-	
+
 	absConfigPath, err := filepath.Abs(configPath)
 	if err != nil {
 		logger.Fatalf("Failed to resolve config path: %v", err)
@@ -73,20 +73,27 @@ func main() {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
 	cfg.Verbose = verbose
-	
+
 	if verbose {
 		logger.Printf("Configuration loaded from: %s", absConfigPath)
 	}
 
-	modelMgr := model.New(cfg, logger)
-	if err := modelMgr.Initialize(cfg.Whisper.Model); err != nil {
+	modelInfo := model.ModelInfo{
+		Name:     cfg.Whisper.Model,
+		URL:      cfg.Whisper.Models[cfg.Whisper.Model].URL,
+		SHA256:   cfg.Whisper.Models[cfg.Whisper.Model].SHA256,
+		DestPath: filepath.Join("models", fmt.Sprintf("ggml-%s.bin", cfg.Whisper.Model)),
+	}
+
+	modelMgr := model.New(logger)
+	if err := modelMgr.Initialize(modelInfo); err != nil {
 		logger.Fatalf("Failed to ensure model exists: %v", err)
 	}
 	if verbose {
 		logger.Printf("Model initialized successfully")
 	}
 
-	srv, err := server.New(cfg, logger, modelMgr)
+	srv, err := server.NewDefaultServer(cfg, logger, modelMgr)
 	if err != nil {
 		logger.Fatalf("Failed to create server: %v", err)
 	}
@@ -132,4 +139,3 @@ func main() {
 	logger.Printf("Cleaning up...")
 	os.Exit(0)
 }
-
