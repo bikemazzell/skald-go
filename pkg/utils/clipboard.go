@@ -79,7 +79,7 @@ func (cm *ClipboardManager) validateSecurityFocused(text string, allowPunctuatio
 
 	if !allowPunctuation {
 		punctuation := []string{
-			".", ",", ";", "&", "|", "<", ">", "\\", "'", "\"", "!", "(", ")", "{", "}", "[", "]", "$",
+			";", "&", "|", "<", ">", "\\", "'", "\"", "(", ")", "{", "}", "[", "]", "$",
 			"\n", "\r", "\x00",
 		}
 		dangerousPatterns = append(dangerousPatterns, punctuation...)
@@ -101,7 +101,7 @@ func (cm *ClipboardManager) validateSecurityFocused(text string, allowPunctuatio
 	dangerousCommands := []string{
 		"rm -rf", "rm\t-rf", "sudo ", "chmod ", "chown ", "mkfs", "dd if=",
 		"curl ", "wget ", "bash ", "sh ", "eval ", "exec ",
-		"python ", "source ", ". ", "export ",
+		"python ", "source ", ". /", "export ",
 	}
 
 	for _, cmd := range dangerousCommands {

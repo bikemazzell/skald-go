@@ -188,10 +188,7 @@ func (t *Transcriber) Stop() error {
 		t.cancel = nil
 	}
 
-	if t.whisper != nil {
-		t.whisper.Close()
-		t.whisper = nil
-	}
+	// Don't close whisper - keep it persistent for reuse
 
 	if t.recorder != nil {
 		if err := t.recorder.Close(); err != nil {
@@ -216,7 +213,9 @@ func (t *Transcriber) processAudio(ctx context.Context, audioChan <-chan []float
 	for {
 		select {
 		case <-ctx.Done():
-			t.logger.Printf("Context cancelled, stopping audio processing")
+			if t.cfg.Verbose {
+				t.logger.Printf("Context cancelled, stopping audio processing")
+			}
 			return nil
 		case samples := <-audioChan:
 			if t.cfg.Verbose {

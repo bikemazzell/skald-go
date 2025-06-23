@@ -10,8 +10,6 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Change to project root
 cd "$PROJECT_ROOT"
 
-echo "Starting Skald-Go server..."
-
 # Check if built binary exists
 if [ ! -f "bin/skald-server" ]; then
     echo "Binary not found. Building..."

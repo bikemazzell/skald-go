@@ -494,6 +494,12 @@ func (s *Server) ensureSocketPathIsSafe() error {
 			conn.Close()
 			return fmt.Errorf("socket is already in use by another process")
 		}
+		
+		// Socket exists but is not in use (stale), remove it
+		s.logger.Printf("Removing stale socket file: %s", s.cfg.Server.SocketPath)
+		if err := os.Remove(s.cfg.Server.SocketPath); err != nil {
+			return fmt.Errorf("failed to remove stale socket: %w", err)
+		}
 	}
 
 	return nil
