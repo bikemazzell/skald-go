@@ -1,10 +1,8 @@
-```
-╔═╗╦╔═╔═╗╦  ╔╦╗   ╔═╗╔═╗
-╚═╗╠╩╗╠═╣║   ║║   ║ ╦║ ║
-╚═╝╩ ╩╩ ╩╩═╝═╩╝   ╚═╝╚═╝
-```
 # Skald-Go - Voice to Text Transcriber
-> Created by [@shoewind1997](https://github.com/bikemazzell)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](VERSION)
+[![Go Version](https://img.shields.io/badge/go-1.23+-blue.svg)](go.mod)
+[![License](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
+
 
 Skald-Go is a lightweight speech-to-text tool that converts your voice to text in real-time using whisper.cpp. It runs quietly in the background without any graphical interface, automatically copying transcriptions to your clipboard. The application consists of two parts: a background server that handles the transcription, and a client that can be bound to a hotkey for easy start/stop control. Named after the ancient Nordic poets and storytellers known as skalds, this tool makes it effortless to transform your spoken words into written text with a single keystroke.
 
