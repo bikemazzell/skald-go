@@ -5,6 +5,7 @@ A lightweight command-line tool for real-time audio transcription using OpenAI's
 ## Philosophy
 
 Following Unix philosophy: **Do one thing well**. Skald transcribes live audio into text from the command line.
+Initially, this program had more configurations, parameters, and complexity. But all it really needs to do is work when invoked from CLI. And that is what it does now: run it and transcribe audio.
 
 ## Features
 
@@ -33,24 +34,21 @@ make run
 
 ```bash
 # Start transcribing (press Ctrl+C to stop)
-./bin/skald
+skald
 
 # Transcribe with a specific model
-./bin/skald -model models/ggml-large-v3-turbo-q8_0.bin
+skald -model models/ggml-base.bin
 
 # Specify language (auto-detect by default)
-./bin/skald -language en
+skald -language en
 
 # Continuous mode (keeps transcribing after each pause)
-./bin/skald -continuous
-
-# Check version
-./bin/skald --version
+skald -continuous
 ```
 
 ### Options
 
-- `-model`: Path to Whisper model file (default: "models/ggml-large-v3-turbo-q8_0.bin")
+- `-model`: Path to Whisper model file (default: "models/ggml-base.bin")
 - `-language`: Language code (e.g., en, es, fr) or "auto" for auto-detection
 - `-continuous`: Enable continuous transcription mode
 - `-sample-rate`: Audio sample rate (default: 16000)
@@ -95,21 +93,9 @@ make build
 
 # Build release version
 make release
-```
 
-### Models
-
-The default model is `ggml-large-v3-turbo-q8_0.bin` (included). For different speed/accuracy trade-offs:
-
-```bash
-# Download smaller/faster models
-make download-tiny-model     # ~39MB, fastest
-make download-base-model     # ~142MB, good balance
-
-# Use different models
-./bin/skald -model models/ggml-tiny.bin      # Fastest
-./bin/skald -model models/ggml-base.bin      # Good balance  
-./bin/skald                                  # Default: large-turbo (best quality)
+# Download a model
+wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -P models/
 ```
 
 ## Version Management
