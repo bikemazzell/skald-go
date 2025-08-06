@@ -11,6 +11,8 @@ bin/
 
 # Output of the go coverage tool
 *.out
+*coverage.*
+output*.html
 
 # Dependency directories (remove the comment below to include it)
 vendor/
@@ -35,7 +37,5 @@ lib/
 Claude.md
 
 # Binaries
-skald
 checksums.txt
 **.tar.gz
-coverage.html

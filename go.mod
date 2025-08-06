@@ -1,18 +1,12 @@
 module skald
 
-go 1.23
+go 1.23.0
 
-toolchain go1.23.3
+toolchain go1.24.4
 
 require (
-	github.com/atotto/clipboard v0.1.4
 	github.com/gen2brain/malgo v0.11.23
 	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20250802050304-0becabc8d68d
-)
-
-require (
-	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
-	golang.org/x/sys v0.34.0 // indirect
 )
 
 replace github.com/ggerganov/whisper.cpp/bindings/go => ./deps/whisper-go

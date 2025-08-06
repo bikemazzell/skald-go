@@ -11,20 +11,40 @@ VERSION := $(shell cat VERSION 2>/dev/null || echo "dev")
 GOFLAGS = -trimpath
 LDFLAGS = -s -w -X main.version=$(VERSION)
 
-# Library path for embedded RPATH (relative to binary location)
-LIB_PATH = \$$ORIGIN/../lib
-
-.PHONY: all build clean install uninstall run test test-coverage test-verbose version release tag
+.PHONY: all build build-static clean install uninstall run test test-coverage test-verbose version release tag deps
 
 all: build
 
+# Build whisper.cpp as static library
+deps:
+	@echo "Building whisper.cpp static libraries..."
+	@cd deps/whisper.cpp && \
+		cmake -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release && \
+		cmake --build build --config Release
+	@echo "Copying static libraries..."
+	@mkdir -p lib-static
+	@cp deps/whisper.cpp/build/src/libwhisper.a lib-static/
+	@cp deps/whisper.cpp/build/ggml/src/libggml*.a lib-static/
+
+# Static build - single binary with no external dependencies
+build-static: deps
+	@echo "Building static $(BINARY)..."
+	@CGO_ENABLED=1 \
+		CGO_CFLAGS="-I$(PWD)/deps/whisper.cpp/include -I$(PWD)/deps/whisper.cpp/ggml/include" \
+		CGO_LDFLAGS="-L$(PWD)/lib-static -lwhisper -lggml -lggml-cpu -lggml-base -lm -lstdc++ -static-libgcc -static-libstdc++" \
+		go build -a $(GOFLAGS) -ldflags="$(LDFLAGS) -linkmode=external -extldflags=-static" -o bin/$(BINARY)-static ./cmd/skald
+
+# Dynamic build (original behavior)
 build:
 	@echo "Building $(BINARY)..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-rpath,$(LIB_PATH)" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
+	@CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
 
 clean:
 	@echo "Cleaning..."
-	@rm -f bin/$(BINARY)
+	@rm -f bin/$(BINARY) bin/$(BINARY)-static
+	@rm -rf lib-static
+	@rm -f *.out coverage* *coverage*.html
+	@cd deps/whisper.cpp && rm -rf build
 
 install: build
 	@echo "Installing $(BINARY) to $(INSTALL_PREFIX)/bin..."
@@ -40,17 +60,19 @@ uninstall:
 	@rm -f $(INSTALL_PREFIX)/bin/$(BINARY)
 
 run: build
-	@./bin/$(BINARY) -model models/ggml-large-v3-turbo-q8_0.bin
+	@./bin/$(BINARY)
 
-# Download base model (optional - large model is default)
-download-base-model:
-	@echo "Downloading base model..."
+run-static: build-static
+	@./bin/$(BINARY)-static
+
+# Download models
+download-model:
+	@echo "Downloading large-v3-turbo model (default)..."
 	@mkdir -p models
-	@wget -nc -P models https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+	@wget -nc -P models https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
 
-# Download small model (faster than base)
 download-tiny-model:
-	@echo "Downloading tiny model..."
+	@echo "Downloading tiny model (alternative, faster but less accurate)..."
 	@mkdir -p models
 	@wget -nc -P models https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
 
