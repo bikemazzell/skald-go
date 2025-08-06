@@ -106,7 +106,7 @@ version:
 # Create a release build with version info
 release: clean
 	@echo "Building release version $(VERSION)..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-rpath,$(LIB_PATH)" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
+	@CGO_ENABLED=1 LIBRARY_PATH=./lib LD_LIBRARY_PATH=./lib CGO_LDFLAGS="-L./lib -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
 	@echo "Release $(VERSION) built successfully"
 
 # Tag and create a git release
