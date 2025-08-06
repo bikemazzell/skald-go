@@ -3,6 +3,7 @@ package audio
 import (
 	"context"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/gen2brain/malgo"
@@ -14,6 +15,7 @@ type Capture struct {
 	malgoCtx   *malgo.AllocatedContext
 	sampleRate uint32
 	audioChan  chan []float32
+	mu         sync.Mutex
 	closed     bool
 }
 
@@ -77,6 +79,10 @@ func (a *Capture) Start(ctx context.Context) (<-chan []float32, error) {
 
 // Stop stops audio capture
 func (a *Capture) Stop() error {
+	// Protect concurrent access to closed flag
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	
 	if a.device != nil {
 		a.device.Uninit()
 		a.device = nil

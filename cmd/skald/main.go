@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"skald/internal/validation"
 	"skald/pkg/skald/app"
 	"skald/pkg/skald/audio"
 	"skald/pkg/skald/output"
@@ -24,6 +25,7 @@ const (
 
 // Version will be set at build time
 var version = "dev"
+
 
 func main() {
 	var (
@@ -44,15 +46,16 @@ func main() {
 		return
 	}
 
-	// Check if model exists
-	if _, err := os.Stat(*modelPath); err != nil {
-		log.Fatalf("Model file not found: %s", *modelPath)
+	// Validate and secure model path
+	validatedModelPath, err := validation.ValidateModelPath(*modelPath)
+	if err != nil {
+		log.Fatalf("Invalid model path: %v", err)
 	}
 
 	// Create components
 	audioCapture := audio.NewCapture(uint32(*sampleRate))
 	
-	whisperTranscriber, err := transcriber.NewWhisper(*modelPath, *language)
+	whisperTranscriber, err := transcriber.NewWhisper(validatedModelPath, *language)
 	if err != nil {
 		log.Fatalf("Failed to create transcriber: %v", err)
 	}

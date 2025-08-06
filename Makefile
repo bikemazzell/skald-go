@@ -37,7 +37,7 @@ build-static: deps
 # Dynamic build (original behavior)
 build:
 	@echo "Building $(BINARY)..."
-	@CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
+	@CGO_ENABLED=1 LIBRARY_PATH=./lib LD_LIBRARY_PATH=./lib CGO_LDFLAGS="-L./lib -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
 
 clean:
 	@echo "Cleaning..."

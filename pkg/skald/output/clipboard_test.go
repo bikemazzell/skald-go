@@ -358,3 +358,76 @@ func (p *PartialWriter) Write(data []byte) (n int, err error) {
 	p.written += len(data)
 	return len(data), nil
 }
+
+// TestClipboardOutput_BinaryPathValidation tests the new security improvement
+// that validates the xclip binary exists before using it
+func TestClipboardOutput_BinaryPathValidation(t *testing.T) {
+	// This test verifies that our copyToClipboard function now uses exec.LookPath
+	// to validate xclip exists before attempting to run it
+	
+	tests := []struct {
+		name        string
+		setupEnv    func() func() // returns cleanup function
+		expectError bool
+		errorCheck  func(error) bool
+	}{
+		{
+			name: "xclip available in PATH",
+			setupEnv: func() func() {
+				// Normal case - xclip should be available
+				return func() {} // no cleanup needed
+			},
+			expectError: false,
+		},
+		{
+			name: "xclip not in PATH",
+			setupEnv: func() func() {
+				// Temporarily remove xclip from PATH to test error handling
+				origPath := os.Getenv("PATH")
+				os.Setenv("PATH", "/nonexistent/path")
+				return func() { os.Setenv("PATH", origPath) }
+			},
+			expectError: true,
+			errorCheck: func(err error) bool {
+				return strings.Contains(err.Error(), "xclip not found in PATH")
+			},
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := tt.setupEnv()
+			defer cleanup()
+			
+			var buf bytes.Buffer
+			output := NewClipboardOutput(&buf, true)
+			
+			err := output.Write("test text")
+			
+			// The Write method should never return an error for clipboard issues
+			// (it's designed to be non-fatal)
+			if err != nil {
+				t.Errorf("Write should not return error, got: %v", err)
+			}
+			
+			result := buf.String()
+			// Should always contain the original text
+			if !strings.Contains(result, "test text") {
+				t.Error("Expected text to be written to stdout")
+			}
+			
+			if tt.expectError {
+				// Should contain warning about clipboard failure
+				if !strings.Contains(result, "Warning: Failed to copy to clipboard") {
+					t.Error("Expected warning message about clipboard failure")
+				}
+				if tt.errorCheck != nil {
+					// Check if the warning contains the expected error pattern
+					if !strings.Contains(result, "xclip not found in PATH") {
+						t.Errorf("Expected warning to contain 'xclip not found in PATH', got: %s", result)
+					}
+				}
+			}
+		})
+	}
+}

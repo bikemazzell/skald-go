@@ -45,7 +45,13 @@ func (c *ClipboardOutput) Write(text string) error {
 
 // copyToClipboard copies text to system clipboard using xclip
 func (c *ClipboardOutput) copyToClipboard(text string) error {
-	cmd := exec.Command("xclip", "-selection", "clipboard")
+	// Validate xclip binary exists and get absolute path
+	xclipPath, err := exec.LookPath("xclip")
+	if err != nil {
+		return fmt.Errorf("xclip not found in PATH: %w", err)
+	}
+	
+	cmd := exec.Command(xclipPath, "-selection", "clipboard")
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
 }

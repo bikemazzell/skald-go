@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
@@ -48,8 +49,8 @@ func TestMain_ModelFileValidation(t *testing.T) {
 	}
 	
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "Model file not found") {
-		t.Errorf("Should contain model not found error, got: %s", outputStr)
+	if !strings.Contains(outputStr, "Invalid model path") || !strings.Contains(outputStr, "model file not found") {
+		t.Errorf("Should contain model validation error, got: %s", outputStr)
 	}
 }
 
@@ -285,7 +286,7 @@ func TestMain_Integration(t *testing.T) {
 	if err != nil {
 		outputStr := string(output)
 		// Check it didn't fail on model file validation
-		if strings.Contains(outputStr, "Model file not found") {
+		if strings.Contains(outputStr, "Invalid model path") && strings.Contains(outputStr, "model file not found") {
 			t.Error("Model file should have been found")
 		}
 	}
@@ -315,9 +316,18 @@ func createTempModelFile(t *testing.T) string {
 	}
 	defer tmpFile.Close()
 	
-	// Write some dummy data
-	if _, err := tmpFile.WriteString("dummy model data"); err != nil {
-		t.Fatalf("Failed to write temp model file: %v", err)
+	// Write valid GGML header
+	// Magic number for GGML
+	const ggmlMagic = 0x67676d6c
+	if err := binary.Write(tmpFile, binary.LittleEndian, uint32(ggmlMagic)); err != nil {
+		t.Fatalf("Failed to write GGML magic: %v", err)
+	}
+	
+	// Write dummy header parameters (11 int32 values to meet minimum size requirement)
+	for i := 0; i < 11; i++ {
+		if err := binary.Write(tmpFile, binary.LittleEndian, int32(i+1)); err != nil {
+			t.Fatalf("Failed to write header param %d: %v", i, err)
+		}
 	}
 	
 	return tmpFile.Name()
