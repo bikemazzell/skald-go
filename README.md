@@ -37,7 +37,7 @@ make run
 skald
 
 # Transcribe with a specific model
-skald -model models/ggml-base.bin
+skald -model models/ggml-large-v3-turbo.bin
 
 # Specify language (auto-detect by default)
 skald -language en
@@ -48,7 +48,7 @@ skald -continuous
 
 ### Options
 
-- `-model`: Path to Whisper model file (default: "models/ggml-base.bin")
+- `-model`: Path to Whisper model file (default: "models/ggml-large-v3-turbo.bin")
 - `-language`: Language code (e.g., en, es, fr) or "auto" for auto-detection
 - `-continuous`: Enable continuous transcription mode
 - `-sample-rate`: Audio sample rate (default: 16000)
@@ -95,7 +95,7 @@ make build
 make release
 
 # Download a model
-wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -P models/
+make download-model
 ```
 
 ## Version Management
