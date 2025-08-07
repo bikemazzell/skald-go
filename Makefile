@@ -11,7 +11,7 @@ VERSION := $(shell cat VERSION 2>/dev/null || echo "dev")
 GOFLAGS = -trimpath
 LDFLAGS = -s -w -X main.version=$(VERSION)
 
-.PHONY: all build build-static clean install uninstall run test test-coverage test-verbose version release tag deps
+.PHONY: all build clean install uninstall run test test-coverage test-verbose version release tag deps
 
 all: build
 
@@ -21,38 +21,24 @@ deps:
 	@cd deps/whisper.cpp && \
 		cmake -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release && \
 		cmake --build build --config Release
-	@echo "Copying static libraries..."
-	@mkdir -p lib-static
-	@cp deps/whisper.cpp/build/src/libwhisper.a lib-static/
-	@cp deps/whisper.cpp/build/ggml/src/libggml*.a lib-static/
 
-# Static build - single binary with no external dependencies
-build-static: deps
-	@echo "Building static $(BINARY)..."
+# Build static binary with no external dependencies
+build: deps
+	@echo "Building $(BINARY)..."
 	@CGO_ENABLED=1 \
 		CGO_CFLAGS="-I$(PWD)/deps/whisper.cpp/include -I$(PWD)/deps/whisper.cpp/ggml/include" \
-		CGO_LDFLAGS="-L$(PWD)/lib-static -lwhisper -lggml -lggml-cpu -lggml-base -lm -lstdc++ -static-libgcc -static-libstdc++" \
-		go build -a $(GOFLAGS) -ldflags="$(LDFLAGS) -linkmode=external -extldflags=-static" -o bin/$(BINARY)-static ./cmd/skald
-
-# Dynamic build (original behavior)
-build:
-	@echo "Building $(BINARY)..."
-	@CGO_ENABLED=1 LIBRARY_PATH=./lib LD_LIBRARY_PATH=./lib CGO_LDFLAGS="-L./lib -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
+		CGO_LDFLAGS="-L$(PWD)/deps/whisper.cpp/build/src -L$(PWD)/deps/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-cpu -lggml-base -lm -lstdc++ -static-libgcc -static-libstdc++" \
+		go build -a $(GOFLAGS) -ldflags="$(LDFLAGS) -linkmode=external -extldflags=-static" -o bin/$(BINARY) ./cmd/skald
 
 clean:
 	@echo "Cleaning..."
-	@rm -f bin/$(BINARY) bin/$(BINARY)-static
-	@rm -rf lib-static
+	@rm -f bin/$(BINARY)
 	@rm -f *.out coverage* *coverage*.html
 	@cd deps/whisper.cpp && rm -rf build
 
 install: build
 	@echo "Installing $(BINARY) to $(INSTALL_PREFIX)/bin..."
 	@install -D bin/$(BINARY) $(INSTALL_PREFIX)/bin/$(BINARY)
-	@echo "Installing libraries to $(INSTALL_PREFIX)/lib..."
-	@install -D lib/*.so* $(INSTALL_PREFIX)/lib/
-	@echo "Updating library cache..."
-	@ldconfig
 	@echo "Installation complete. You can now run: $(BINARY)"
 
 uninstall:
@@ -61,9 +47,6 @@ uninstall:
 
 run: build
 	@./bin/$(BINARY)
-
-run-static: build-static
-	@./bin/$(BINARY)-static
 
 # Download models
 download-model:
@@ -104,9 +87,12 @@ version:
 	@echo "skald version $(VERSION)"
 
 # Create a release build with version info
-release: clean
+release: clean deps
 	@echo "Building release version $(VERSION)..."
-	@CGO_ENABLED=1 LIBRARY_PATH=./lib LD_LIBRARY_PATH=./lib CGO_LDFLAGS="-L./lib -lwhisper -lggml -lggml-base -lggml-cpu -lm -lstdc++ -fopenmp -Wl,-rpath,\$$ORIGIN/../lib" go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o bin/$(BINARY) ./cmd/skald
+	@CGO_ENABLED=1 \
+		CGO_CFLAGS="-I$(PWD)/deps/whisper.cpp/include -I$(PWD)/deps/whisper.cpp/ggml/include" \
+		CGO_LDFLAGS="-L$(PWD)/deps/whisper.cpp/build/src -L$(PWD)/deps/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-cpu -lggml-base -lm -lstdc++ -static-libgcc -static-libstdc++" \
+		go build -a $(GOFLAGS) -ldflags="$(LDFLAGS) -linkmode=external -extldflags=-static" -o bin/$(BINARY) ./cmd/skald
 	@echo "Release $(VERSION) built successfully"
 
 # Tag and create a git release
