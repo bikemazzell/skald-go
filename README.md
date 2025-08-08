@@ -28,6 +28,20 @@ sudo make install
 make run
 ```
 
+### System dependencies (Debian/Ubuntu)
+
+Install required runtime libraries once on the target machine:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libstdc++6 libgomp1 libasound2 xclip
+```
+
+- libstdc++6 and libgomp1 are needed for C++ and OpenMP runtime
+- libasound2 is needed for ALSA audio input
+- xclip is optional (clipboard output); the app still runs without it
+- On very minimal systems you may also need: `sudo apt-get install -y libgcc-s1`
+
 ## Usage
 
 ### Basic Usage
