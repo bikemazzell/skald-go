@@ -32,8 +32,12 @@ func (w *WhisperContextWrapper) SetLanguage(lang string) error {
 
 func (w *WhisperContextWrapper) Process(audio []float32, cb1, cb2 interface{}) error {
 	// Type assertions for whisper callback types
+	var encoderBeginCallback whisper.EncoderBeginCallback
 	var segmentCallback whisper.SegmentCallback
 	var progressCallback whisper.ProgressCallback
+	
+	// Default encoder begin callback that allows processing
+	encoderBeginCallback = func() bool { return true }
 	
 	if cb1 != nil {
 		if sc, ok := cb1.(whisper.SegmentCallback); ok {
@@ -47,7 +51,7 @@ func (w *WhisperContextWrapper) Process(audio []float32, cb1, cb2 interface{}) e
 		}
 	}
 	
-	return w.context.Process(audio, segmentCallback, progressCallback)
+	return w.context.Process(audio, encoderBeginCallback, segmentCallback, progressCallback)
 }
 
 func (w *WhisperContextWrapper) NextSegment() (WhisperSegment, error) {
