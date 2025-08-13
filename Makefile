@@ -24,7 +24,7 @@ GOGETFLAGS ?= -u
 all: build
 
 # Build whisper.cpp as static library
-deps:
+deps: update-go-deps
 	@echo "Building whisper.cpp static libraries..."
 	@cd deps/whisper.cpp && \
 		cmake -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_WARN_DEPRECATED=OFF && \
@@ -126,6 +126,7 @@ help:
 	@echo "  make release            - Build release with version info"
 	@echo "  make tag                - Create git tag for current version"
 	@echo "  make help               - Show this help"
+	@echo "  make deps               - Update Go modules and build whisper.cpp libraries"
 	@echo "  make update-deps        - Update Go modules, vendor, and whisper.cpp (if git)"
 
 # Update Go module dependencies and vendor folder
