@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,6 +26,20 @@ const (
 
 // Version will be set at build time
 var version = "dev"
+
+// validateSampleRate ensures the sample rate is within safe bounds
+func validateSampleRate(rate int) error {
+	if rate < 8000 {
+		return fmt.Errorf("sample rate too low: %d (minimum: 8000)", rate)
+	}
+	if rate > 192000 {
+		return fmt.Errorf("sample rate too high: %d (maximum: 192000)", rate)
+	}
+	if rate < 0 || rate > math.MaxUint32 {
+		return fmt.Errorf("sample rate out of uint32 range: %d", rate)
+	}
+	return nil
+}
 
 
 func main() {
@@ -52,8 +67,15 @@ func main() {
 		log.Fatalf("Invalid model path: %v", err)
 	}
 
-	// Create components
-	audioCapture := audio.NewCapture(uint32(*sampleRate))
+	// Validate sample rate before use
+	if err := validateSampleRate(*sampleRate); err != nil {
+		log.Fatalf("Invalid sample rate: %v", err)
+	}
+
+	// Create components with validated sample rate
+	// Note: Safe conversion after validation - sampleRate already checked to be within uint32 range
+	safeRate := uint32(*sampleRate) //nolint:gosec
+	audioCapture := audio.NewCapture(safeRate)
 	
 	whisperTranscriber, err := transcriber.NewWhisper(validatedModelPath, *language)
 	if err != nil {
@@ -66,7 +88,7 @@ func main() {
 
 	// Create app configuration
 	config := app.Config{
-		SampleRate:       uint32(*sampleRate),
+		SampleRate:       safeRate,
 		SilenceThreshold: float32(*silenceThreshold),
 		SilenceDuration:  float32(*silenceDuration),
 		Continuous:       *continuous,

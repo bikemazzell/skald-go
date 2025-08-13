@@ -32,28 +32,21 @@ func TestApp_Run(t *testing.T) {
 					// Send some audio samples
 					go func() {
 						defer close(audioChan)
-						// First, send non-silent audio
-						audioChan <- []float32{0.1, 0.2, 0.3}
-						audioChan <- []float32{0.1, 0.2, 0.3}
-						// Then send enough silence to trigger transcription
-						// silence duration is 0.1s, sample rate is 16000, so need 1600 samples of silence
-						for i := 0; i < 20; i++ {
-							select {
-							case audioChan <- []float32{0.001, 0.001}:
-							case <-ctx.Done():
-								return
-							}
-						}
+						// First, send non-silent audio (100 samples)
+						audioChan <- make([]float32, 100)
+						// Then send exactly enough silence to trigger transcription
+						// silence duration is 0.001s, sample rate is 16000, so need 16 samples of silence
+						audioChan <- make([]float32, 16)
 					}()
 					return audioChan, nil
 				}
 
-				// Setup silence detector - more predictable pattern
+				// Setup silence detector - first chunk is speech, second is silence
 				callCount := 0
 				silence.IsSilentFunc = func(samples []float32, threshold float32) bool {
 					callCount++
-					// First 2 calls are speech, rest are silence
-					return callCount > 2
+					// First call is speech, second is silence
+					return callCount > 1
 				}
 
 				// Setup transcriber
@@ -62,7 +55,7 @@ func TestApp_Run(t *testing.T) {
 				}
 			},
 			expectedError:  false,
-			expectedOutput: []string{"Hello, World!"},
+			expectedOutput: []string{"Hello, World!"}, // Process once on silence detection
 		},
 		{
 			name: "audio start error",
@@ -188,9 +181,13 @@ func TestApp_Run(t *testing.T) {
 				silence.IsSilentFunc = func(samples []float32, threshold float32) bool {
 					return false // Never silent
 				}
+				
+				trans.TranscribeFunc = func(audio []float32) (string, error) {
+					return "transcribed", nil
+				}
 			},
 			expectedError:  false, // Channel close is handled gracefully
-			expectedOutput: nil,
+			expectedOutput: []string{"transcribed"}, // Now processes remaining audio on close
 		},
 	}
 
@@ -370,6 +367,7 @@ func TestApp_processSession_TranscriptionErrorLogging(t *testing.T) {
 		buffer:          make([]float32, 0),
 		silentSamples:   0,
 		silentThreshold: int(float32(config.SampleRate) * config.SilenceDuration), // 16 samples
+		maxSamples:      int(float32(config.SampleRate) * 25.0), // 25 seconds max
 	}
 
 	ctx := context.Background()
@@ -382,7 +380,7 @@ func TestApp_processSession_TranscriptionErrorLogging(t *testing.T) {
 		t.Errorf("processSession() should not return transcription errors, got: %v", err)
 	}
 
-	// Verify transcriber was called
+	// Verify transcriber was called once (silence triggers immediately, buffer is reset, nothing remaining on close)
 	if mockTrans.TranscribeCalled != 1 {
 		t.Errorf("Expected Transcribe to be called once, got %d", mockTrans.TranscribeCalled)
 	}

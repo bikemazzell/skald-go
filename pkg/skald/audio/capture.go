@@ -27,6 +27,17 @@ func NewCapture(sampleRate uint32) *Capture {
 	}
 }
 
+// safeMalgoUninit provides safe cleanup of malgo context with error handling
+func safeMalgoUninit(ctx *malgo.AllocatedContext, operation string) {
+	if ctx == nil {
+		return
+	}
+	if err := ctx.Uninit(); err != nil {
+		// Log but don't fail - cleanup should be best effort
+		fmt.Printf("Warning: Failed to uninit malgo context during %s: %v\n", operation, err)
+	}
+}
+
 // Start begins audio capture
 func (a *Capture) Start(ctx context.Context) (<-chan []float32, error) {
 	deviceConfig := malgo.DefaultDeviceConfig(malgo.Capture)
@@ -40,8 +51,19 @@ func (a *Capture) Start(ctx context.Context) (<-chan []float32, error) {
 			return
 		}
 		
+		// Add bounds checking
+		expectedBytes := framecount * 4 // 4 bytes per float32
+		// Note: Safe conversion after bounds check - len(pInput) is always >= 0
+		if expectedBytes > uint32(len(pInput)) { //nolint:gosec
+			// Log error and skip this frame
+			fmt.Printf("Warning: Frame count %d exceeds input buffer size %d\n", 
+				framecount, len(pInput)/4)
+			return
+		}
+		
 		samples := make([]float32, framecount)
-		copy(samples, (*[1 << 30]float32)(unsafe.Pointer(&pInput[0]))[:framecount])
+		// Note: Unsafe operation with bounds checking above - required for malgo audio API
+		copy(samples, (*[1 << 30]float32)(unsafe.Pointer(&pInput[0]))[:framecount]) //nolint:gosec
 		
 		select {
 		case a.audioChan <- samples:
@@ -62,7 +84,7 @@ func (a *Capture) Start(ctx context.Context) (<-chan []float32, error) {
 		Data: onRecvFrames,
 	})
 	if err != nil {
-		malgoCtx.Uninit()
+		safeMalgoUninit(malgoCtx, "device init failure cleanup")
 		return nil, fmt.Errorf("failed to init capture device: %w", err)
 	}
 
@@ -70,7 +92,7 @@ func (a *Capture) Start(ctx context.Context) (<-chan []float32, error) {
 
 	if err := device.Start(); err != nil {
 		device.Uninit()
-		malgoCtx.Uninit()
+		safeMalgoUninit(malgoCtx, "device start failure cleanup")
 		return nil, fmt.Errorf("failed to start device: %w", err)
 	}
 
@@ -88,7 +110,7 @@ func (a *Capture) Stop() error {
 		a.device = nil
 	}
 	if a.malgoCtx != nil {
-		a.malgoCtx.Uninit()
+		safeMalgoUninit(a.malgoCtx, "normal stop")
 		a.malgoCtx = nil
 	}
 	// Only close channel once

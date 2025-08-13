@@ -47,10 +47,13 @@ func (app *App) Run(ctx context.Context) error {
 	log.Println("Listening... Press Ctrl+C to stop")
 
 	for {
+		// Create session with 25-second max to stay safely under Whisper's 30s limit
+		maxDurationSeconds := float32(25.0)
 		session := &TranscriptionSession{
 			buffer:          make([]float32, 0),
 			silentSamples:   0,
 			silentThreshold: int(float32(app.config.SampleRate) * app.config.SilenceDuration),
+			maxSamples:      int(float32(app.config.SampleRate) * maxDurationSeconds),
 		}
 
 		if err := app.processSession(ctx, audioChan, session); err != nil {
@@ -68,16 +71,29 @@ type TranscriptionSession struct {
 	buffer          []float32
 	silentSamples   int
 	silentThreshold int
+	maxSamples      int // Maximum samples before forced transcription (30s limit)
 }
 
-// processSession processes a single transcription session
+// processSession processes a single transcription session with automatic chunking
 func (app *App) processSession(ctx context.Context, audioChan <-chan []float32, session *TranscriptionSession) error {
 	for {
 		select {
 		case <-ctx.Done():
+			// Process any remaining audio before exiting
+			if len(session.buffer) > 0 {
+				if err := app.transcribeAndOutput(session.buffer); err != nil {
+					log.Printf("Final transcription error: %v", err)
+				}
+			}
 			return ctx.Err()
 		case samples, ok := <-audioChan:
 			if !ok {
+				// Channel closed, process any remaining audio
+				if len(session.buffer) > 0 {
+					if err := app.transcribeAndOutput(session.buffer); err != nil {
+						log.Printf("Final transcription error: %v", err)
+					}
+				}
 				return nil
 			}
 
@@ -93,12 +109,40 @@ func (app *App) processSession(ctx context.Context, audioChan <-chan []float32, 
 				session.silentSamples = 0
 			}
 
-			// Process buffer when silence detected
+			// Determine if we should process the buffer
+			shouldProcess := false
+			resetBuffer := false
+
+			// Condition 1: Silence detected (original behavior)
 			if session.silentSamples >= session.silentThreshold && len(session.buffer) > 0 {
+				shouldProcess = true
+				resetBuffer = true
+			}
+
+			// Condition 2: Buffer reached max duration (25 seconds)
+			// This prevents sending >30s to Whisper which degrades quality
+			if len(session.buffer) >= session.maxSamples {
+				shouldProcess = true
+				resetBuffer = true
+				log.Printf("Audio buffer reached maximum duration (%.1fs), forcing transcription", 
+					float64(len(session.buffer))/float64(app.config.SampleRate))
+			}
+
+			if shouldProcess {
 				if err := app.transcribeAndOutput(session.buffer); err != nil {
 					log.Printf("Transcription error: %v", err)
 				}
-				return nil
+				
+				if resetBuffer {
+					// Reset buffer and silence counter
+					session.buffer = make([]float32, 0)
+					session.silentSamples = 0
+				}
+
+				// Exit if not in continuous mode and silence was detected
+				if !app.config.Continuous && session.silentSamples >= session.silentThreshold {
+					return nil
+				}
 			}
 		}
 	}

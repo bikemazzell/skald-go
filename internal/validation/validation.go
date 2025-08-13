@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const ggmlMagic = 0x67676d6c // "ggml" in hex
@@ -28,6 +29,35 @@ func ValidateModelPath(path string) (string, error) {
 	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve model path: %w", err)
+	}
+	
+	return absPath, nil
+}
+
+// ValidateModelPathStrict provides additional path validation with directory restrictions
+func ValidateModelPathStrict(path string, allowedDirs []string) (string, error) {
+	// Use existing validation first
+	absPath, err := ValidateModelPath(path)
+	if err != nil {
+		return "", err
+	}
+	
+	// Additional check: ensure path is within allowed directories
+	if len(allowedDirs) > 0 {
+		pathAllowed := false
+		for _, allowedDir := range allowedDirs {
+			allowedAbs, err := filepath.Abs(allowedDir)
+			if err != nil {
+				continue
+			}
+			if strings.HasPrefix(absPath, allowedAbs) {
+				pathAllowed = true
+				break
+			}
+		}
+		if !pathAllowed {
+			return "", fmt.Errorf("model path not in allowed directories: %s", absPath)
+		}
 	}
 	
 	return absPath, nil
