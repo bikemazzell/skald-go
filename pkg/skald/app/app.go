@@ -124,8 +124,6 @@ func (app *App) processSession(ctx context.Context, audioChan <-chan []float32, 
 			if len(session.buffer) >= session.maxSamples {
 				shouldProcess = true
 				resetBuffer = true
-				log.Printf("Audio buffer reached maximum duration (%.1fs), forcing transcription", 
-					float64(len(session.buffer))/float64(app.config.SampleRate))
 			}
 
 			if shouldProcess {
