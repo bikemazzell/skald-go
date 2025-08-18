@@ -18,8 +18,12 @@ WHISPER_CPP_REMOTE ?= https://github.com/ggerganov/whisper.cpp.git
 # Control how aggressively to update Go deps: -u (minor+patch) or -u=patch
 GOGETFLAGS ?= -u
 
+# Zig toolchain for portable builds targeting older glibc
+ZIG ?= zig
+ZIG_TARGET ?= x86_64-linux-gnu.2.17
+
 .PHONY: all build clean install uninstall run test test-coverage test-verbose version release tag deps init-deps \
-	update-deps update-go-deps update-whisper-cpp
+	update-deps update-go-deps update-whisper-cpp deps-zig release-glibc217 abi-check
 
 all: build
 
@@ -28,6 +32,28 @@ deps: init-deps update-go-deps
 	@echo "Building whisper.cpp static libraries..."
 	@cd deps/whisper.cpp && \
 		cmake -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_WARN_DEPRECATED=OFF && \
+		cmake --build build --config Release
+
+# Build whisper.cpp with Zig targeting older glibc
+# This keeps static libs but ensures object code is compatible with glibc 2.17
+deps-zig: init-deps update-go-deps
+	@echo "Building whisper.cpp static libraries with Zig ($(ZIG_TARGET))..."
+	@cd deps/whisper.cpp && \
+		ZIG_BIN="$$(command -v $(ZIG))" && \
+		cmake -B build \
+		  -DBUILD_SHARED_LIBS=OFF \
+		  -DWHISPER_BUILD_EXAMPLES=OFF \
+		  -DWHISPER_BUILD_TESTS=OFF \
+		  -DGGML_NATIVE=OFF \
+		  -DCMAKE_BUILD_TYPE=Release \
+		  -DCMAKE_WARN_DEPRECATED=OFF \
+		  -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		  -DCMAKE_C_COMPILER="$$ZIG_BIN" \
+		  -DCMAKE_C_COMPILER_ARG1=cc \
+		  -DCMAKE_C_COMPILER_TARGET="$(ZIG_TARGET)" \
+		  -DCMAKE_CXX_COMPILER="$$ZIG_BIN" \
+		  -DCMAKE_CXX_COMPILER_ARG1=c++ \
+		  -DCMAKE_CXX_COMPILER_TARGET="$(ZIG_TARGET)" && \
 		cmake --build build --config Release
 
 # Initialize whisper.cpp and whisper-go if they don't exist
@@ -95,6 +121,19 @@ test-coverage:
 	@echo "Coverage report generated: coverage.html"
 
 # Run tests with verbose output
+
+# Build a portable release targeting glibc 2.17 using Zig toolchain
+release-glibc217: clean deps-zig
+	@echo "Building release version $(VERSION) targeting $(ZIG_TARGET) with Zig..."
+	@CGO_ENABLED=1 \
+		CC="$(ZIG) cc -target $(ZIG_TARGET)" \
+		CXX="$(ZIG) c++ -target $(ZIG_TARGET)" \
+		CGO_CFLAGS="-I$(PWD)/deps/whisper.cpp/include -I$(PWD)/deps/whisper.cpp/ggml/include" \
+		CGO_LDFLAGS="-L$(PWD)/deps/whisper.cpp/build/src -L$(PWD)/deps/whisper.cpp/build/ggml/src -lwhisper -lggml -lggml-cpu -lggml-base -lstdc++ -static-libgcc -static-libstdc++ -lm -lpthread -ldl -Wl,--as-needed" \
+		go build -a $(GOFLAGS) -tags osusergo,netgo -ldflags='$(LDFLAGS) -linkmode external -extldflags "-static-libgcc -static-libstdc++ -Wl,--as-needed"' -o bin/$(BINARY) ./cmd/skald
+	@$(MAKE) abi-check
+	@echo "Portable release $(VERSION) built successfully (target $(ZIG_TARGET))"
+
 test-verbose:
 	@echo "Running tests (verbose)..."
 	@go test -v ./pkg/skald/...
@@ -103,6 +142,13 @@ test-verbose:
 bench:
 	@echo "Running benchmarks..."
 	@go test -bench=. -benchmem ./pkg/skald/...
+
+# Check the GLIBC versions required by the produced binary
+abi-check:
+	@echo "Checking GLIBC requirements in bin/$(BINARY)..."
+	@which objdump >/dev/null 2>&1 || { echo "objdump not found; install binutils to run abi-check"; exit 0; }
+	@objdump -p bin/$(BINARY) | grep -E 'GLIBC_[0-9\.]+|ld-linux|libc\.so' | sort -u || true
+
 
 # Show current version
 version:
@@ -125,23 +171,26 @@ tag:
 
 help:
 	@echo "Usage:"
-	@echo "  make build              - Build the binary"
-	@echo "  make clean              - Clean build artifacts"
-	@echo "  make install            - Install binary and libraries"
-	@echo "  make uninstall          - Remove installed files"
-	@echo "  make run                - Build and run with default model"
+	@echo "  make build               - Build the binary"
+	@echo "  make clean               - Clean build artifacts"
+	@echo "  make install             - Install binary and libraries"
+	@echo "  make uninstall           - Remove installed files"
+	@echo "  make run                 - Build and run with default model"
 	@echo "  make download-base-model - Download base whisper model"
 	@echo "  make download-tiny-model - Download tiny whisper model"
-	@echo "  make test               - Run all tests"
-	@echo "  make test-coverage      - Run tests with coverage report"
-	@echo "  make test-verbose       - Run tests with verbose output"
-	@echo "  make bench              - Run benchmarks"
-	@echo "  make version            - Show current version"
-	@echo "  make release            - Build release with version info"
-	@echo "  make tag                - Create git tag for current version"
-	@echo "  make help               - Show this help"
-	@echo "  make deps               - Update Go modules and build whisper.cpp libraries"
-	@echo "  make update-deps        - Update Go modules, vendor, and whisper.cpp (if git)"
+	@echo "  make test                - Run all tests"
+	@echo "  make test-coverage       - Run tests with coverage report"
+	@echo "  make test-verbose        - Run tests with verbose output"
+	@echo "  make bench               - Run benchmarks"
+	@echo "  make version             - Show current version"
+	@echo "  make release             - Build release with version info"
+	@echo "  make release-glibc217    - Build portable release targeting glibc 2.17 (requires zig)"
+	@echo "  make abi-check           - Show GLIBC symbol requirements of binary"
+	@echo "  make tag                 - Create git tag for current version"
+	@echo "  make help                - Show this help"
+	@echo "  make deps                - Update Go modules and build whisper.cpp libraries"
+	@echo "  make deps-zig            - Build whisper.cpp with zig (glibc 2.17 target)"
+	@echo "  make update-deps         - Update Go modules, vendor, and whisper.cpp (if git)"
 
 # Update Go module dependencies and vendor folder
 update-go-deps:

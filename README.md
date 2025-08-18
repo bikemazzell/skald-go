@@ -148,6 +148,22 @@ If you encounter build errors:
 make clean
 make deps
 make build
+
+## Portable builds (glibc 2.17 via Zig)
+
+To produce a binary that runs on older Linux distributions (e.g., glibc 2.17+), build with Zig targeting an older glibc:
+
+```bash
+# Install zig (see https://ziglang.org/)
+# Then build a portable release
+make release-glibc217
+
+# Inspect required GLIBC versions
+make abi-check
+```
+
+This uses zig cc targeting x86_64-linux-gnu.2.17 for both whisper.cpp and the cgo link, and statically links libstdc++/libgcc to reduce runtime dependencies.
+
 ```
 
 ## Version Management
