@@ -12,14 +12,14 @@ Initially, this program had more configurations, parameters, and complexity. But
 - Real-time audio capture and transcription
 - Automatic silence detection
 - Clipboard integration
-- Continuous transcription mode
+- Continuous transcription mode (processed at 30s chunks - optimal for Whisper.cpp)
 - Multiple language support
 
 ## Installation
 
 ```bash
 # Build from source
-make build
+make build # or make release -- for optimized release build
 
 # Install system-wide
 sudo make install

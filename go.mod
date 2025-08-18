@@ -6,7 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/gen2brain/malgo v0.11.23
-	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20250813173045-16c2924cb2c4
+	github.com/ggerganov/whisper.cpp/bindings/go v0.0.0-20250815125423-040510a132f0
 )
 
 replace github.com/ggerganov/whisper.cpp/bindings/go => ./deps/whisper-go
