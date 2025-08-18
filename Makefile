@@ -18,17 +18,29 @@ WHISPER_CPP_REMOTE ?= https://github.com/ggerganov/whisper.cpp.git
 # Control how aggressively to update Go deps: -u (minor+patch) or -u=patch
 GOGETFLAGS ?= -u
 
-.PHONY: all build clean install uninstall run test test-coverage test-verbose version release tag deps \
+.PHONY: all build clean install uninstall run test test-coverage test-verbose version release tag deps init-deps \
 	update-deps update-go-deps update-whisper-cpp
 
 all: build
 
-# Build whisper.cpp as static library
-deps: update-go-deps
+# Initialize and build whisper.cpp dependencies
+deps: init-deps update-go-deps
 	@echo "Building whisper.cpp static libraries..."
 	@cd deps/whisper.cpp && \
 		cmake -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_WARN_DEPRECATED=OFF && \
 		cmake --build build --config Release
+
+# Initialize whisper.cpp and whisper-go if they don't exist
+init-deps:
+	@if [ ! -d "$(WHISPER_CPP_DIR)" ]; then \
+		echo "Cloning whisper.cpp..."; \
+		mkdir -p deps; \
+		git clone $(WHISPER_CPP_REMOTE) $(WHISPER_CPP_DIR); \
+	fi
+	@if [ ! -d "deps/whisper-go" ]; then \
+		echo "Setting up whisper-go bindings..."; \
+		cp -r $(WHISPER_CPP_DIR)/bindings/go deps/whisper-go; \
+	fi
 
 # Build static binary with no external dependencies
 build: deps
@@ -42,7 +54,9 @@ clean:
 	@echo "Cleaning..."
 	@rm -f bin/$(BINARY)
 	@rm -f *.out coverage* *coverage*.html
-	@cd deps/whisper.cpp && rm -rf build
+	@if [ -d "deps/whisper.cpp" ]; then \
+		cd deps/whisper.cpp && rm -rf build; \
+	fi
 
 install: build
 	@echo "Installing $(BINARY) to $(INSTALL_PREFIX)/bin..."

@@ -17,9 +17,18 @@ Initially, this program had more configurations, parameters, and complexity. But
 
 ## Installation
 
+### Quick Start
+
 ```bash
-# Build from source
-make build # or make release -- for optimized release build
+# Clone the repository
+git clone https://github.com/bikemazzell/skald-go.git
+cd skald-go
+
+# Build from source (automatically downloads and builds dependencies)
+make build
+
+# Or build optimized release version
+make release
 
 # Install system-wide
 sudo make install
@@ -27,6 +36,12 @@ sudo make install
 # Or run directly
 make run
 ```
+
+The `make build` command will automatically:
+1. Clone whisper.cpp if not present
+2. Set up Go bindings
+3. Build static libraries
+4. Compile the skald binary
 
 ### System dependencies (Debian/Ubuntu)
 
@@ -96,20 +111,43 @@ Simple pipeline with minimal components:
 - Linux with ALSA support
 - xclip (for clipboard support)
 
-## Building
+## Building from Source
+
+### Prerequisites
+
+- Go 1.21 or later
+- CMake (for building whisper.cpp)
+- C++ compiler (g++ or clang++)
+- Git
+
+### Build Steps
 
 ```bash
-# Download dependencies
-go mod download
+# Initialize dependencies and build
+make deps    # Downloads whisper.cpp and builds static libraries
+make build   # Builds the skald binary
 
-# Build binary
+# Or simply run (deps is automatic)
 make build
 
-# Build release version
+# Build optimized release version
 make release
 
-# Download a model
-make download-model
+# Download a Whisper model (required for transcription)
+make download-model  # Downloads large-v3-turbo model
+# Or for a smaller, faster model:
+make download-tiny-model
+```
+
+### Troubleshooting
+
+If you encounter build errors:
+
+```bash
+# Clean everything and rebuild
+make clean
+make deps
+make build
 ```
 
 ## Version Management
